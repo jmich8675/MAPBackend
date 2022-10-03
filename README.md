@@ -8,7 +8,7 @@ The Backend for CS307 Project
 * clone this repo (creates a local copy of the repo)
 * cd MAPBackend 
 * virtualenv venv (creates a virtualenvironment named venv)
-* source venv/bin/activate (activates the virtualenvironment any package you install inside it will be local to the project)
+* source venv/bin/activate (activates the virtualenvironment any package you install inside it will be local to the project/ VSCode automatically detects venv folder and activates it so you can skip this line)
 * pip install -r requirements.txt (downloads all the packages needed for the project)
 
 * deactivate (ATTENTION: use only if you want to deactivate the virtualenv, probably before closing the project)
