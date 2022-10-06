@@ -3,7 +3,7 @@ from pydantic import BaseModel
 
 
 class GoalBase(BaseModel):
-    goal_name: id
+    goal_name: str
     check_in_period: int
 
 class GoalCreate(GoalBase):
