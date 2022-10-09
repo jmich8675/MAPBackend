@@ -1,10 +1,29 @@
 from crypt import methods
+from urllib.request import Request
 from fastapi import FastAPI
 from pydantic import BaseModel
 from starlette.responses import RedirectResponse
 import starlette.status as status
+from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
+
+origins = [
+    "https://thick-peaches-shop-73-145-245-180.loca.lt",
+    "http://localhost",
+    "http://localhost:8000",
+    "https://localhost:8000",
+    "https://localhost:3000",
+    "http://localhost:3000"
+    ]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 dummyDB = {}
 
@@ -68,4 +87,5 @@ def login(user: User):
 @app.get("/home/{username}")
 def home(username: str):
     return {"home": username}
+
 
