@@ -1,8 +1,23 @@
-from crypt import methods
 from fastapi import FastAPI
 from pydantic import BaseModel
 from starlette.responses import RedirectResponse
 import starlette.status as status
+
+#DATABASE
+from fastapi import Depends, FastAPI, HTTPException
+from sqlalchemy.orm import Session
+import crud, models, schemas
+from database import SessionLocal, engine
+
+models.Base.metadata.create_all(bind=engine)
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+#DATABASE
 
 app = FastAPI()
 
@@ -30,25 +45,24 @@ async def read_item(skip: int = 0, limit: int = 10):
 class User(BaseModel):
     name: str
     password: str
+#this user is outdated. our class declarations exists in schemas.py
 
 # trying post request
 @app.post("/signup")
-def signup(user: User):
-    print(f"signup {user.name} {user.password}")
-    username = user.name
-    password = user.password
-    
+def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
+    print(f"signup {user.username} {user.pw_hash}")
     # check the dummy database if user exists
-    checkpassword = dummyDB.get(username)
-
-    if checkpassword != None:
+    db_user = crud.get_user_by_email(db, email=user.email)
+    if db_user:
+          print("email already registered") #will probably raise httpexception here
+    db_user = crud.get_user_by_username(db, username=user.username)
+    if db_user:
+          print("username already exists")
+    #if checkpassword != None:
         # take the already present user to login page
-        return RedirectResponse(url=app.url_path_for("login"))
-
-    # add the user to the dummy database
-    dummyDB[username] = password
-
-    return RedirectResponse(f'/home/{username}', status_code=status.HTTP_302_FOUND)
+        #return RedirectResponse(url=app.url_path_for("login"))
+    crud.create_user(db=db, user=user)
+    return RedirectResponse(f'/home/{user.username}', status_code=status.HTTP_302_FOUND)
 
 @app.post("/login")
 def login(user: User):
@@ -68,4 +82,3 @@ def login(user: User):
 @app.get("/home/{username}")
 def home(username: str):
     return {"home": username}
-
