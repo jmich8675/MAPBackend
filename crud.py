@@ -32,3 +32,45 @@ def create_user_goal(db: Session, goal: schemas.GoalCreate, user_id: int):
     db.commit()
     db.refresh(db_goal)
     return db_goal
+
+def delete_user(db: Session, user_id: int):
+    deleted=db.query(models.User).filter(models.User.id == user_id).delete(synchronize_session="fetch")
+    if deleted:
+        db.commit()
+        return "Successful deletion"
+    else:
+        return "User not found"
+
+def delete_goal(db: Session, goal_id: int):
+    deleted=db.query(models.Goal).filter(models.Goal.id == user_id).delete(synchronize_session="fetch")
+    if deleted:
+        db.commit()
+        return "Successful deletion"
+    else:
+        return "Goal not found"
+
+def create_template(db: Session, template: schemas.TemplateCreate):
+    db_template = models.Template(name=template.name)
+    db.add(db_template)
+    db.commit()
+    db.refresh(db_template)
+    return db_template
+
+def create_question(db: Session, question: schemas.QuestionCreate, template_id: int):
+    db_question = models.Question(text=question.text, template_id=template_id
+                                  response_type=question.response_type,check_in_num=0,
+                                  next_check_in_period=question.next_check_in_period)
+    db.add(db_question)
+    db.commit()
+    db.refresh(db_question)
+    return db_question
+
+def create_response(db: Session, question: schemas.ResponseCreate):
+    db_response = models.Response(**question.dict())
+    db.add(db_response)
+    db.commit()
+    db.refresh(db_response)
+    return db_response
+    
+                    
+                                  
