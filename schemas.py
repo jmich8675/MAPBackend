@@ -20,16 +20,16 @@ class Template(TemplateBase):
 
 class ResponseBase(BaseModel):
     text: str
+    question_id: int
+    goal_id: int
+    check_in_number = int
 
 class ResponseCreate(ResponseBase):
     pass
 
 class Response(ResponseBase):
     response_id: int
-    question_id: int
-    goal_id: int
-    check_in_number = int
-
+    
     class Config:
         orm_mode = True
 
@@ -59,7 +59,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     pw_hash: str
-    pw_salt: str
+    pw_salt: int
 
 class User(UserBase):
     id: int
