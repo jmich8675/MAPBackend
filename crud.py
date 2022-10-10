@@ -57,7 +57,7 @@ def create_template(db: Session, template: schemas.TemplateCreate):
     return db_template
 
 def create_question(db: Session, question: schemas.QuestionCreate, template_id: int):
-    db_question = models.Question(text=question.text, template_id=template_id
+    db_question = models.Question(text=question.text, template_id=template_id,
                                   response_type=question.response_type,check_in_num=0,
                                   next_check_in_period=question.next_check_in_period)
     db.add(db_question)
