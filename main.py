@@ -1,10 +1,12 @@
 from crypt import methods
+from os import stat
 from urllib.request import Request
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from pydantic import BaseModel
 from starlette.responses import RedirectResponse
 import starlette.status as status
 from fastapi.middleware.cors import CORSMiddleware
+import bcrypt
 
 #DATABASE
 from fastapi import Depends, FastAPI, HTTPException
@@ -24,6 +26,7 @@ def get_db():
 
 app = FastAPI()
 
+#CORS STUFF
 origins = [
     "https://thick-peaches-shop-73-145-245-180.loca.lt",
     "http://localhost",
@@ -40,67 +43,104 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+#CORS STUFF
 
-dummyDB = {}
+#REQUEST MODELS
+class User(BaseModel):
+    email: str | None = None
+    username: str
+    password: str
+#REQUEST MODELS
+
+#JWT STUFF
+
+#JWT STUFF
 
 @app.get("/")
-async def root():
+def root():
     return {"message": "Welcome to MAP website"}
-
-# trying path parameters 
-
-@app.get("/users/{user_id}")
-async def read_user(user_id: int | None = None):
-    # database query with user_id
-    dummy = {"username" : "Ayush"}
-    return {"user_id": user_id, "dummydata": dummy}
-
-
-# trying query parameters : things after ? in the url string
-
-@app.get("/goals/")
-async def read_item(skip: int = 0, limit: int = 10):
-    return {"skip": skip, "limit": limit}
-
-class User(BaseModel):
-    name: str
-    password: str
-#this user is outdated. our class declarations exists in schemas.py
 
 # trying post request
 @app.post("/signup")
-def signup(user: schemas.UserCreate, db: Session = Depends(get_db)):
-    print(f"signup {user.username} {user.pw_hash}")
-    # check the dummy database if user exists
+def signup(user: User, response: Response, db: Session = Depends(get_db)):
+    print(f"signup {user.username} {user.email} {user.password}")
+    
+    # check the db to see if user with this email exists
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
-          print("email already registered") #will probably raise httpexception here
+          message = {"message": "user with the email already exists"}
+          response.status_code = status.HTTP_302_FOUND  
+          return message
+    
+    # check the db to see if user with this username already exists
     db_user = crud.get_user_by_username(db, username=user.username)
     if db_user:
-          print("username already exists")
-    #if checkpassword != None:
-        # take the already present user to login page
-        #return RedirectResponse(url=app.url_path_for("login"))
-    crud.create_user(db=db, user=user)
-    return RedirectResponse(f'/home/{user.username}', status_code=status.HTTP_302_FOUND)
+        message = {"message": "user with the username already exists"}
+        response.status_code = status.HTTP_302_FOUND
+        return message
+
+    # IS A NEW USER
+
+    #generate a salt
+    salt = bcrypt.gensalt(12)    
+    #combine and generate the pass hash
+    passhash = bcrypt.hashpw(user.password.encode('utf-8'), salt)
+    salt = salt.decode('utf-8')
+    passhash = passhash.decode('utf-8')
+    print(f"{salt} {passhash}")
+
+    #make a schema
+    new_user = schemas.UserCreate(email=user.email, username=user.username,
+                          pw_hash=passhash, pw_salt=salt)
+    new_user = crud.create_user(db, new_user)
+
+    # if not successful database transaction
+    if not new_user:
+        message = {"message": "Error Occured while creating the user"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+    
+    # TODO: generate JWT token and send it as header along with the 200 ok status
+
+    message = {"message": "User created Successfully",
+                "username": user.username }
+    response.status_code = status.HTTP_200_OK
+    return message
 
 @app.post("/login")
-def login(user: User):
-    print(f"login {user.name} {user.password}")
-    # check the dummy database if user exists
-    checkpassword = dummyDB.get(user.name)
+def login(user: User, response: Response, db: Session = Depends(get_db)):
+    print(f"login {user.username} {user.password}")
+
+    # check the db to see if user with this username does not exist
+    db_user = crud.get_user_by_username(db, username=user.username)
+    if not db_user:
+        message = {"message": "user with the username does not exist"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
+
+    # IS A RETURNING USER
+
+    # see if the given password match with the password in db    
+    db_passhash = bytes(db_user.pw_hash, 'utf-8')
+    salt = bytes(db_user.pw_salt, 'utf-8')
+    curr_passhash = bcrypt.hashpw(user.password.encode('utf-8'), salt)
+
+    print(f"{salt} {db_passhash} {curr_passhash}")
+    #verify password
+    if db_passhash != curr_passhash:
+        message = {"message": "Incorrect Password"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
     
-    if checkpassword == None:
-        # take not present user to signup page
-        return RedirectResponse(url=app.url_path_for("signup"))
+    #is the correct user
+    # TODO: generate JWT token and send it as header along with the 200 ok status
 
-    if checkpassword != user.password:
-        return {"message" : "wrong password"}
+    message = {"message": "User Found Successfully",
+                "username": user.username }
+    response.status_code = status.HTTP_200_OK
+    return message  
 
-    return RedirectResponse(f'/home/{user.name}', status_code=status.HTTP_302_FOUND)
-
+# TODO: verify JWT before accesssing this page
 @app.get("/home/{username}")
 def home(username: str):
     return {"home": username}
-
-

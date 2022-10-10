@@ -59,7 +59,7 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     pw_hash: str
-    pw_salt: int
+    pw_salt: str
 
 class User(UserBase):
     id: int
