@@ -1,9 +1,8 @@
 from email import header
-import re
 from urllib import request
 from fastapi import FastAPI, Response, status, Request
 from pydantic import BaseModel
-from starlette.responses import RedirectResponse,JSONResponse
+from starlette.responses import RedirectResponse
 import starlette.status as status
 from fastapi.middleware.cors import CORSMiddleware
 import bcrypt
@@ -30,7 +29,7 @@ app = FastAPI()
 
 #CORS STUFF
 origins = [
-    "https://real-lemons-sleep-128-210-106-73.loca.lt",
+    "https://thick-peaches-shop-73-145-245-180.loca.lt",
     "http://localhost",
     "http://localhost:8000",
     "https://localhost:8000",
@@ -63,6 +62,10 @@ class Token(BaseModel):
     access_token: str
     token_type: str
 
+
+class TokenData(BaseModel):
+    username: str | None = None
+
 def create_access_token(data: dict, expires_delta: timedelta | None = None):
     to_encode = data.copy()
     if expires_delta:
@@ -73,40 +76,38 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
-def verify_access_token(token: str, username: str):
-    print("verify function")
+def verify_access_token(token: str):
+    print(token)
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Could not validate credentials",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
     try:
-        print("inside try")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        username_payload: str = payload.get("sub")
-        if username_payload is None:
-            return False
-        if username_payload != username:
-            return False
+        username: str = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+        token_data = TokenData(username=username)
     except JWTError:
-        return False
-    return True
-    
-@app.middleware("http")
-async def is_logged_in(request: Request, call_next):
-    # credentials_exception = HTTPException(
-    #     status_code=status.HTTP_401_UNAUTHORIZED,
-    #     detail="Could not validate credentials",
-    #     headers={"WWW-Authenticate": "Bearer"},
-    # )
-    urls = ["/login", "/signup", "/", "/docs", "/openapi.json", "/redoc"]
-    print(request.url.path)
-    if (request.url.path not in urls):
-        token = request.headers.get('Authorization', None)
-        username = request.url.path.split('/')[1]
+        raise credentials_exception
+    print(token.username)
+    user = crud.get_user_by_username(token_data.username)
+    if user is None:
+        raise credentials_exception
+    return user
 
-        if (not token) or (not verify_access_token(token, username)):
-            return JSONResponse(content={
-                    "message": "User Not logged in"
-                }, status_code=status.HTTP_400_BAD_REQUEST)
+# def is_logged_in(func):
+#     @wraps(func)
+#     def wrap(*args, **kargs):
+#         request = Request.headers.get('bearer')
+#         print(type(request))
+#         return func(*args, **kargs)
+#     return wrap
 
-    response = await call_next(request)
-    return response
+def is_logged_in():
+    print()
+    return User
 #JWT STUFF
 
 @app.get("/")
@@ -161,7 +162,7 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
     message = {"message": "User created Successfully",
                 "username": user.username,
                 "access_token": access_token, 
-                "token_type": "Bearer"}
+                "token_type": "bearer"}
     response.status_code = status.HTTP_200_OK
     return message
 
@@ -196,8 +197,7 @@ def login(user: User, response: Response, db: Session = Depends(get_db)):
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
-    
-    message = {"message": "User loggedin Successfully",
+    message = {"message": "User created Successfully",
                 "username": user.username,
                 "access_token": access_token, 
                 "token_type": "bearer"}
@@ -205,6 +205,8 @@ def login(user: User, response: Response, db: Session = Depends(get_db)):
     return message  
 
 # TODO: verify JWT before accesssing this page
-@app.get("/{username}")
+@app.get("/home/{username}")
 def home(username: str, request: Request):
-    return {"home": username}
+    user = verify_access_token(request.headers['bearer'])
+
+    return {"home": user.username}

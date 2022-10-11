@@ -1,7 +1,8 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, Interval, String, Date, Enum
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Interval, Enum
 from sqlalchemy.orm import relationship
 import enum
 from database import Base
+from datetime import timedelta
 
 class response_types(enum.Enum):
     TYPE = 0
@@ -30,7 +31,8 @@ class Goal(Base):
     check_in_period = Column(Interval, index=True)
     next_check_in = Column(Date, index=True)
     check_in_num = Column(Integer, index=True)
-    is_public = Column(Boolean)
+    is_public = Column(Boolean, default=False)
+    template_id = Column(Integer, index=True)
 
     creator = relationship("User", back_populates="goals")
     answers = relationship("Response", back_populates="goal")
@@ -41,7 +43,7 @@ class Template(Base):
     template_id = Column(Integer, primary_key=True, index=True)
     is_custom = Column(Boolean, default=False)
     name = Column(String, index=True)
-    creator_id = Column(Integer, ForeignKey("users.id"), default=-1)
+    creator_id = Column(Integer, ForeignKey("users.id"))
 
     creator = relationship("User", back_populates="templates")
     questions = relationship("Question", back_populates="template")

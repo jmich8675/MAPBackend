@@ -1,5 +1,5 @@
 from sqlalchemy.orm import Session
-from datetime import date
+from datetime import date, timedelta
 import models, schemas
 
 def get_user(db: Session, user_id: int):
@@ -25,9 +25,9 @@ def create_user(db: Session, user: schemas.UserCreate):
 def def_get_items(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Item).offset(skip).limit(limit).all()
 
-def create_user_goal(db: Session, goal: schemas.GoalCreate, user_id: int):
+def create_specific_goal(db: Session, goal: schemas.GoalSpecificCreate, user_id: int):
     db_goal = models.Goal(**goal.dict(), creator_id=user_id, start_date=date.today(),
-                          next_check_in=date.today(), check_in_num=0)
+                          check_in_num=0, check_in_period=goal.next_check_in-date.today())
     db.add(db_goal)
     db.commit()
     db.refresh(db_goal)
@@ -49,12 +49,19 @@ def delete_goal(db: Session, goal_id: int):
     else:
         return "Goal not found"
 
-def create_template(db: Session, template: schemas.TemplateCreate):
+def create_template(db: Session, template: schemas.TemplateCreate, creator_id: int):
     db_template = models.Template(name=template.name)
+    if not template.is_custom:
+        db_template.creator_id = -1
+    else:
+        db_template.creator_id = creator_id
     db.add(db_template)
     db.commit()
     db.refresh(db_template)
     return db_template
+
+def get_template(db: Session, template_id: int):
+    return db.query(models.Template).filter(models.Template.id == template_id).first()   
 
 def create_question(db: Session, question: schemas.QuestionCreate, template_id: int):
     db_question = models.Question(text=question.text, template_id=template_id,
@@ -71,6 +78,5 @@ def create_response(db: Session, question: schemas.ResponseCreate):
     db.commit()
     db.refresh(db_response)
     return db_response
-    
                     
                                   
