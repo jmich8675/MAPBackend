@@ -31,7 +31,7 @@ app = FastAPI()
 
 #CORS STUFF
 origins = [
-    "https://poor-weeks-do-128-210-106-73.loca.lt",
+    "https://fuzzy-bananas-send-128-210-106-73.loca.lt",
     "http://localhost",
     "http://localhost:8000",
     "https://localhost:8000",
