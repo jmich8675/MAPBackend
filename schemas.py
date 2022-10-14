@@ -6,11 +6,11 @@ from sqlalchemy import Integer, Interval
 
 class ResponseBase(BaseModel):
     text: str
-    question_id: int
+    question_id: int 
     check_in_number: int
+    goal_id: int 
 
 class ResponseCreate(ResponseBase):
-    goal_id: int    
     pass
 
 class Response(ResponseBase):
@@ -76,6 +76,7 @@ class Goal(GoalBase):
     check_in_period: int
     check_in_num: int
     is_public: bool
+    is_achieved: bool
     answers: list[Response] = []
 
     class Config:

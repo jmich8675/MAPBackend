@@ -1,5 +1,6 @@
+from tkinter import CASCADE
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Interval, Enum
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, backref
 import enum
 from database import Base
 from datetime import timedelta
@@ -33,9 +34,10 @@ class Goal(Base):
     check_in_num = Column(Integer, index=True)
     is_public = Column(Boolean, default=False)
     template_id = Column(Integer, index=True)
+    is_achieved = Column(Boolean, default=False)
 
     creator = relationship("User", back_populates="goals")
-    #answers = relationship("Response", back_populates="goal")
+    answers = relationship("Response", back_populates="goal", passive_deletes=True)
 
 class Template(Base):
     __tablename__ = "templates"
@@ -66,10 +68,10 @@ class Response(Base):
 
     response_id = Column(Integer, primary_key=True, index=True)
     question_id = Column(Integer, ForeignKey("questions.question_id"))
-    goal_id = Column(Integer, ForeignKey("goals.id"))
+    goal_id = Column(Integer, ForeignKey("goals.id", ondelete="CASCADE"))
     text = Column(String, index=True)
     check_in_number = Column(Integer, index=True)
 
     #question = relationship("Question", back_populates="answers")
-    #goal = relationship("Goal", back_populates="answers")
+    goal = relationship("Goal", backref=backref("responses",passive_deletes=True))
     

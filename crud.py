@@ -1,3 +1,4 @@
+import enum
 from sqlalchemy.orm import Session
 from datetime import date, timedelta
 import models, schemas
@@ -25,7 +26,7 @@ def create_user(db: Session, user: schemas.UserCreate):
 def get_goal(db: Session, goal_id: int):
     return db.query(models.Goal).filter(models.Goal.id == goal_id).first()
 
-def create_specific_goal(db: Session, goal_name: str, check_in_period: int,
+def create_goal(db: Session, goal_name: str, check_in_period: int,
                          template_id: int, user_id: int):
     db_goal = models.Goal(goal_name=goal_name, template_id=template_id, creator_id=user_id, 
                           start_date=date.today(), check_in_num=0, 
@@ -51,13 +52,13 @@ def delete_goal(db: Session, goal_id: int):
     deleted=db.query(models.Goal).filter(models.Goal.id == goal_id).delete(synchronize_session="fetch")
     if deleted:
         db.commit()
-        return "Successful deletion"
+        return True
     else:
-        return "Goal not found"
+        return False
 
-def create_template(db: Session, template: schemas.TemplateCreate, creator_id: int):
-    db_template = models.Template(name=template.name)
-    if not template.is_custom:
+def create_template(db: Session, name: str, is_custom: bool, creator_id: int):
+    db_template = models.Template(name=name)
+    if not is_custom:
         db_template.is_custom = False
         db_template.creator_id = -1
     else:
@@ -71,17 +72,19 @@ def create_template(db: Session, template: schemas.TemplateCreate, creator_id: i
 def get_template(db: Session, template_id: int):
     return db.query(models.Template).filter(models.Template.template_id == template_id).first()   
 
-def create_question(db: Session, question: schemas.QuestionCreate, template_id: int):
-    db_question = models.Question(text=question.text, template_id=template_id,
-                                  response_type=question.response_type,check_in_num=0,
-                                  next_check_in_period=question.next_check_in_period)
+def create_question(db: Session, text: str, template_id: int, response_type: enum,
+                    next_check_in_period: int):
+    db_question = models.Question(text=text, template_id=template_id,
+                                  response_type=response_type,check_in_num=0,
+                                  next_check_in_period=next_check_in_period)
     db.add(db_question)
     db.commit()
     db.refresh(db_question)
     return db_question
 
-def create_response(db: Session, response: schemas.ResponseCreate):
-    db_response = models.Response(**response.dict())
+def create_response(db: Session, text: str, question_id: int, check_in_number: int, goal_id: int):
+    db_response = models.Response(question_id=question_id, goal_id=goal_id, text=text,
+                                  check_in_number=check_in_number)
     db.add(db_response)
     db.commit()
     db.refresh(db_response)
@@ -93,13 +96,16 @@ def get_premade_templates(db: Session, skip: int = 0, limit: int = 100):
 def get_questions_by_template(db: Session, template_id: int):
     return db.query(models.Question).filter(models.Question.template_id == template_id).all()
 
+def get_question(db: Session, question_id: int):
+    return db.query(models.Question).filter(models.Question.question_id == question_id).all()
+
 def get_responses_by_goal(db: Session, goal_id: int):
     return db.query(models.Response).filter(models.Response.goal_id == goal_id).all()
 
 def get_responses_by_question(db: Session, question_id: int):
     return db.query(models.Response).filter(models.Response.question_id == question_id).all()
 
-def update_goal_checkin_period(db: Session, goal_id: int, new_check_in: timedelta):
+def update_goal_check_in_period(db: Session, goal_id: int, new_check_in: timedelta):
     goal = get_goal(db, goal_id)
     if goal:
         goal.check_in_period = new_check_in
@@ -111,11 +117,11 @@ def update_goal_checkin_period(db: Session, goal_id: int, new_check_in: timedelt
 def mark_goal_achieved(db: Session, goal_id: int):
     goal = get_goal(db, goal_id)
     if goal:
-        goal.achieved = True
+        goal.is_achieved = True
         db.commit()
-        return "Goal Achieved"
-    else:
-        return "Goal not found"
+        db.refresh(goal)
+        return True
+    return False
 
 def toggle_goal_paused(db: Session, goal_id: int):
     goal = get_goal(db, goal_id)

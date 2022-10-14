@@ -220,51 +220,90 @@ def login(user: User, response: Response, db: Session = Depends(get_db)):
 def home(username: str, db: Session=Depends(get_db)):
     return {"message": crud.get_user_goals(db=db, username=username)}
 
-
-# 
-# @app.post("/{username}/create_specific_goal")
-# def create_specific_goal(username: str, goal: schemas.GoalSpecificCreate,
-#                 response: Response, db: Session=Depends(get_db)):
-#     user = crud.get_user_by_username(db=db, username=username)
-#     if not user:
-#         message = {"message": "User not found"}
-#         response.status_code = status.HTTP_403_FORBIDDEN
-#         return message
-#     creator_id = user.id
-#     crud.create_specific_goal(db=db, goal=goal, user_id=creator_id)
-#     template=crud.get_template(db=db, template_id=goal.template_id)
-#     if not template:
-#         message = {"message": "error: template not found"}
-#         response.status_code = status.HTTP_403_FORBIDDEN
-#         return message
-#     message = {"message": "Goal successfully created!"}
-#     response.status_code = status.HTTP_200_OK
-#     return message
-#
+class SmallResponse(BaseModel):
+    text: str
+    question_id: int
 
 class BigGoal(BaseModel):
     goal_name: str
     template_id: int
     check_in_period: int
-    responses: list[schemas.ResponseBase] = []
+    responses: list[SmallResponse] = []
 
 
 @app.post("/{username}/create_specific_goal")
-def create_specific_goal(goaljson: BigGoal, username: str, db: Session=Depends(get_db)):
+def create_specific_goal(goaljson: BigGoal, username: str, response: Response, db: Session=Depends(get_db)):
     user = crud.get_user_by_username(db=db, username=username)
     if not user:
         message={"message": "user does not exist"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return message
     template = crud.get_template(db=db, template_id=goaljson.template_id)
     if not template:
         message={"message": "template does not exist"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
         return message
     
-    
-    crud.create_specific_goal(db=db, goal_name=goaljson.goal_name, 
+    goal = crud.create_goal(db=db, goal_name=goaljson.goal_name, 
                               check_in_period=goaljson.check_in_period,
                               template_id=goaljson.template_id,
                               user_id=user.id)
+
+    for answer in goaljson.responses:
+        question = crud.get_question(db=db, question_id=answer.question_id)
+        if not question:
+            message={"message": "question does not exist"}
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return message
+        
+        crud.create_response(db=db, text=answer.text, question_id=answer.question_id,
+                             check_in_number=0, goal_id = goal.id)
+    message={"goal and responses created successfully!"}
+    response.status_code = status.HTTP_201_CREATED
+    return message
+    
+
+class BigCustomGoal(BaseModel):
+    goal_name: str
+    check_in_period: int
+    questions_answers: list[list[str, str]] = []
+        
+@app.post("/{username}/create_custom_goal")
+def create_custom_goal(goaljson: BigCustomGoal, username: str, 
+                       response: Response, db: Session=Depends(get_db)):
+    user = crud.get_user_by_username(db=db, username=username)
+    if not user:
+        message={"message": "user not found"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return message
+    
+    template = crud.create_template(db=db, name=goaljson.goal_name,is_custom=True,
+                                     creator_id=user.id)
+    if not template:
+        message={"message": "template not created"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+    
+    goal = crud.create_goal(db=db, goal_name=goaljson.goal_name, check_in_period=goaljson.check_in_period,
+                             template_id=template.template_id, user_id=user.id)
+    if not goal:
+        message={"message": "goal not created"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+    
+    for QA in goaljson.questions_answers:
+        question = crud.create_question(db=db, text=QA[0], template_id=template.template_id,
+                                        response_type=models.response_types(0), next_check_in_period=0)
+        answer = crud.create_response(db=db, text=QA[1], question_id=question.question_id,
+                                      check_in_number=0, goal_id=goal.id)
+    
+    message={"custom goal created!"}
+    response.status_code = status.HTTP_201_CREATED
+    return message
+        
+
+
+
                               
 
 @app.post("/{username}/create_template")
@@ -294,13 +333,53 @@ def view_responses(goal_id: int, db: Session=Depends(get_db)):
     return crud.get_responses_by_goal(db=db, goal_id=goal_id)
 
 @app.post("/{username}/create_response")
-def create_response(response: schemas.ResponseCreate,
+def create_response(resp: schemas.ResponseCreate, response: Response,
                     db: Session=Depends(get_db)):
-    goal = crud.get_goal(db=db, goal_id=goal_id)
+    goal = crud.get_goal(db=db, goal_id=resp.goal_id)
     if not goal:
         message = {"message": "error: goal not found"}
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
-    crud.create_response(db=db, response=response)
+    crud.create_response(db=db, response=resp)
     message = {"message": "response created!"}
+    return message
+
+@app.put("/{username}/{goal_id}/achieved_goal")
+def achieved_goal(username: str, goal_id: int, response: Response, db: Session=Depends(get_db)):
+    user = crud.get_user_by_username(db=db, username=username)
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    if not goal:
+        message = {"message": "error: goal not found"}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return message
+    if goal.creator_id != user.id:
+        message = {"message": "not your goal"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
+    if not crud.mark_goal_achieved(db=db, goal_id=goal_id):
+        message = {"message": "some server error?!"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+    message = {"message": "goal achieved! congrats!"}
+    response.status_code = status.HTTP_200_OK
+    return message
+
+@app.delete("/{username}/{goal_id}/delete_goal")
+def delete_goal(username: str, goal_id: int, response: Response, db: Session=Depends(get_db)):
+    user = crud.get_user_by_username(db=db, username=username)
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    if not goal:
+        message = {"message": "error: goal not found"}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return message
+    if goal.creator_id != user.id:
+        message = {"message": "not your goal"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
+    if not crud.delete_goal(db=db, goal_id=goal_id):
+        message = {"message": "goal not deleted"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+    message = {"message": "goal deleted!"}
+    response.status_code = status.HTTP_200_OK
     return message
