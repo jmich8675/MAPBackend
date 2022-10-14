@@ -22,16 +22,22 @@ def create_user(db: Session, user: schemas.UserCreate):
     db.refresh(db_user)
     return db_user
 
-def def_get_items(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Item).offset(skip).limit(limit).all()
+def get_goal(db: Session, goal_id: int):
+    return db.query(models.Goal).filter(models.Goal.id == goal_id).first()
 
-def create_specific_goal(db: Session, goal: schemas.GoalSpecificCreate, user_id: int):
-    db_goal = models.Goal(**goal.dict(), creator_id=user_id, start_date=date.today(),
-                          check_in_num=0, check_in_period=goal.next_check_in-date.today())
+def create_specific_goal(db: Session, goal_name: str, check_in_period: int,
+                         template_id: int, user_id: int):
+    db_goal = models.Goal(goal_name=goal_name, template_id=template_id, creator_id=user_id, 
+                          start_date=date.today(), check_in_num=0, 
+                          check_in_period=check_in_period, next_check_in=date.today())
     db.add(db_goal)
     db.commit()
     db.refresh(db_goal)
     return db_goal
+
+def get_user_goals(username: str, db: Session, skip: int = 0, limit: int = 100):
+    user=db.query(models.User).filter(models.User.username == username).first()
+    return user.goals
 
 def delete_user(db: Session, user_id: int):
     deleted=db.query(models.User).filter(models.User.id == user_id).delete(synchronize_session="fetch")
@@ -42,7 +48,7 @@ def delete_user(db: Session, user_id: int):
         return "User not found"
 
 def delete_goal(db: Session, goal_id: int):
-    deleted=db.query(models.Goal).filter(models.Goal.id == user_id).delete(synchronize_session="fetch")
+    deleted=db.query(models.Goal).filter(models.Goal.id == goal_id).delete(synchronize_session="fetch")
     if deleted:
         db.commit()
         return "Successful deletion"
@@ -63,7 +69,7 @@ def create_template(db: Session, template: schemas.TemplateCreate, creator_id: i
     return db_template
 
 def get_template(db: Session, template_id: int):
-    return db.query(models.Template).filter(models.Template.id == template_id).first()   
+    return db.query(models.Template).filter(models.Template.template_id == template_id).first()   
 
 def create_question(db: Session, question: schemas.QuestionCreate, template_id: int):
     db_question = models.Question(text=question.text, template_id=template_id,
@@ -74,8 +80,8 @@ def create_question(db: Session, question: schemas.QuestionCreate, template_id: 
     db.refresh(db_question)
     return db_question
 
-def create_response(db: Session, question: schemas.ResponseCreate):
-    db_response = models.Response(**question.dict())
+def create_response(db: Session, response: schemas.ResponseCreate):
+    db_response = models.Response(**response.dict())
     db.add(db_response)
     db.commit()
     db.refresh(db_response)
@@ -83,4 +89,45 @@ def create_response(db: Session, question: schemas.ResponseCreate):
 
 def get_premade_templates(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.Template).filter(models.Template.is_custom == False).offset(skip).limit(limit).all()
-                                  
+
+def get_questions_by_template(db: Session, template_id: int):
+    return db.query(models.Question).filter(models.Question.template_id == template_id).all()
+
+def get_responses_by_goal(db: Session, goal_id: int):
+    return db.query(models.Response).filter(models.Response.goal_id == goal_id).all()
+
+def get_responses_by_question(db: Session, question_id: int):
+    return db.query(models.Response).filter(models.Response.question_id == question_id).all()
+
+def update_goal_checkin_period(db: Session, goal_id: int, new_check_in: timedelta):
+    goal = get_goal(db, goal_id)
+    if goal:
+        goal.check_in_period = new_check_in
+        db.commit()
+        return "Check in period updated"
+    else:
+        return "Goal not found"
+
+def mark_goal_achieved(db: Session, goal_id: int):
+    goal = get_goal(db, goal_id)
+    if goal:
+        goal.achieved = True
+        db.commit()
+        return "Goal Achieved"
+    else:
+        return "Goal not found"
+
+def toggle_goal_paused(db: Session, goal_id: int):
+    goal = get_goal(db, goal_id)
+    if goal:
+        if goal.is_pause == True:
+            goal.is_paused = False
+            db.commit()
+            return "Goal Unpaused"
+        else:
+            goal.is_paused = True
+            db.commit()
+            return "Goal Paused"
+    else:
+        return "Goal not found"
+                  
