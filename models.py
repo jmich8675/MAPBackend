@@ -1,4 +1,3 @@
-from tkinter import CASCADE
 from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Interval, Enum
 from sqlalchemy.orm import relationship, backref
 import enum
