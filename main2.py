@@ -86,7 +86,6 @@ class IsLoggedIn(APIRoute):
             # )
             urls = ["/login", "/signup", "/", "/docs", "/openapi.json", "/redoc"]
             print(request.url.path)
-            print(request.headers)
             if (request.url.path not in urls):
                 token = request.headers.get('Authorization', None)
                 username = request.url.path.split('/')[1]
@@ -222,25 +221,52 @@ def home(username: str, db: Session=Depends(get_db)):
     return {"message": crud.get_user_goals(db=db, username=username)}
 
 
+# 
+# @app.post("/{username}/create_specific_goal")
+# def create_specific_goal(username: str, goal: schemas.GoalSpecificCreate,
+#                 response: Response, db: Session=Depends(get_db)):
+#     user = crud.get_user_by_username(db=db, username=username)
+#     if not user:
+#         message = {"message": "User not found"}
+#         response.status_code = status.HTTP_403_FORBIDDEN
+#         return message
+#     creator_id = user.id
+#     crud.create_specific_goal(db=db, goal=goal, user_id=creator_id)
+#     template=crud.get_template(db=db, template_id=goal.template_id)
+#     if not template:
+#         message = {"message": "error: template not found"}
+#         response.status_code = status.HTTP_403_FORBIDDEN
+#         return message
+#     message = {"message": "Goal successfully created!"}
+#     response.status_code = status.HTTP_200_OK
+#     return message
+#
+
+class BigGoal(BaseModel):
+    goal_name: str
+    template_id: int
+    check_in_period: int
+    responses: list[schemas.ResponseBase] = []
+
+
 @app.post("/{username}/create_specific_goal")
-def create_specific_goal(username: str, goal: schemas.GoalSpecificCreate,
-                response: Response, db: Session=Depends(get_db)):
-    #session authentication
+def create_specific_goal(goaljson: BigGoal, username: str, db: Session=Depends(get_db)):
     user = crud.get_user_by_username(db=db, username=username)
     if not user:
-        message = {"message": "User not found"}
-        response.status_code = status.HTTP_403_FORBIDDEN
+        message={"message": "user does not exist"}
         return message
-    creator_id = user.id
-    crud.create_specific_goal(db=db, goal=goal, user_id=creator_id)
-    template=crud.get_template(db=db, template_id=goal.template_id)
+    template = crud.get_template(db=db, template_id=goaljson.template_id)
     if not template:
-        message = {"message": "error: template not found"}
-        response.status_code = status.HTTP_403_FORBIDDEN
+        message={"message": "template does not exist"}
         return message
-    message = {"message": "Goal successfully created!"}
-    response.status_code = status.HTTP_200_OK
-    return message
+    
+    crud.create_specific_goal(db=db, goal_name=goaljson.goal_name, 
+                              check_in_period=goaljson.check_in_period,
+                              template_id=goaljson.template_id)
+                              
+
+
+
 
 @app.post("/{username}/create_template")
 def create_template(username: str, template: schemas.TemplateCreate,
@@ -263,3 +289,19 @@ def view_goals():
 @app.get("/{username}/templates", response_model=list[schemas.Template])
 def view_premade_templates(db: Session=Depends(get_db), skip: int = 0, limit: int = 100):
     return crud.get_premade_templates(db=db, skip=skip, limit=limit)
+
+@app.get("/{username}/{goal_id}/responses")
+def view_responses(goal_id: int, db: Session=Depends(get_db)):
+    return crud.get_responses_by_goal(db=db, goal_id=goal_id)
+
+@app.post("/{username}/create_response")
+def create_response(response: schemas.ResponseCreate,
+                    db: Session=Depends(get_db)):
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    if not goal:
+        message = {"message": "error: goal not found"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
+    crud.create_response(db=db, response=response)
+    message = {"message": "response created!"}
+    return message
