@@ -6,10 +6,14 @@ from pydantic import BaseModel
 from starlette.responses import RedirectResponse, JSONResponse
 import starlette.status as status
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
+from fastapi.middleware import Middleware
 from jose import JWTError, jwt
 from datetime import datetime, timedelta
 from functools import wraps
 import bcrypt
+from fastapi.routing import APIRoute
+from fastapi.exceptions import RequestValidationError
 
 #DATABASE
 from fastapi import Depends, FastAPI, HTTPException
@@ -28,25 +32,6 @@ def get_db():
 #DATABASE
 
 app = FastAPI()
-
-#CORS STUFF
-origins = [
-    "https://fuzzy-bananas-send-128-210-106-73.loca.lt",
-    "http://localhost",
-    "http://localhost:8000",
-    "https://localhost:8000",
-    "https://localhost:3000",
-    "http://localhost:3000"
-    ]
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=origins,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-#CORS STUFF
 
 #REQUEST MODELS
 class User(BaseModel):
@@ -88,27 +73,53 @@ def verify_access_token(token: str, username: str):
         return False
     return True
 
-@app.middleware("http")
-async def is_logged_in(request: Request, call_next):
-    # credentials_exception = HTTPException(
-    #     status_code=status.HTTP_401_UNAUTHORIZED,
-    #     detail="Could not validate credentials",
-    #     headers={"WWW-Authenticate": "Bearer"},
-    # )
-    urls = ["/login", "/signup", "/", "/docs", "/openapi.json", "/redoc","/create_template"]
-    print(request.url.path)
-    if (request.url.path not in urls):
-        token = request.headers.get('Authorization', None)
-        username = request.url.path.split('/')[1]
 
-        if (not token) or (not verify_access_token(token, username)):
-            return JSONResponse(content={
-                    "message": "User Not logged in"
-                }, status_code=status.HTTP_400_BAD_REQUEST)
+class IsLoggedIn(APIRoute):
+    def get_route_handler(self) -> callable:
+        original_route_handler = super().get_route_handler()
 
-    response = await call_next(request)
-    return response
+        async def route_authentication_handler(request: Request) -> Response:
+            # credentials_exception = HTTPException(
+            #     status_code=status.HTTP_401_UNAUTHORIZED,
+            #     detail="Could not validate credentials",
+            #     headers={"WWW-Authenticate": "Bearer"},
+            # )
+            urls = ["/login", "/signup", "/", "/docs", "/openapi.json", "/redoc"]
+            print(request.url.path)
+            if (request.url.path not in urls):
+                token = request.headers.get('Authorization', None)
+                username = request.url.path.split('/')[1]
+
+                if (not token) or (not verify_access_token(token, username)):
+                    return JSONResponse(content={
+                            "message": "User Not logged in"
+                        }, status_code=status.HTTP_400_BAD_REQUEST)
+            try:
+                return await original_route_handler(request)
+            except RequestValidationError as exc:
+                    body = await request.body()
+                    detail = {"errors": exc.errors(), "body": body.decode()}
+                    raise HTTPException(status_code=422, detail=detail)
+        return route_authentication_handler
 #JWT STUFF
+#CORS STUFF
+origins = [
+    "http://localhost:3000"
+    ]
+
+middleware = [
+    Middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
+)
+]
+
+app = FastAPI(middleware=middleware)
+app.router.route_class = IsLoggedIn
+#CORS STUFF
 
 @app.get("/")
 def root():
@@ -122,14 +133,14 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
     # check the db to see if user with this email exists
     db_user = crud.get_user_by_email(db, email=user.email)
     if db_user:
-          message = {"message": "user with the email already exists"}
+          message = {"message": "User with the email already exists"}
           response.status_code = status.HTTP_302_FOUND  
           return message
     
     # check the db to see if user with this username already exists
     db_user = crud.get_user_by_username(db, username=user.username)
     if db_user:
-        message = {"message": "user with the username already exists"}
+        message = {"message": "User with the username already exists"}
         response.status_code = status.HTTP_302_FOUND
         return message
 
@@ -206,31 +217,57 @@ def login(user: User, response: Response, db: Session = Depends(get_db)):
 
 
 @app.get("/{username}")
-def home(username: str):
-    return {"home": username}
+def home(username: str, db: Session=Depends(get_db)):
+    return {"message": crud.get_user_goals(db=db, username=username)}
+
+
+# 
+# @app.post("/{username}/create_specific_goal")
+# def create_specific_goal(username: str, goal: schemas.GoalSpecificCreate,
+#                 response: Response, db: Session=Depends(get_db)):
+#     user = crud.get_user_by_username(db=db, username=username)
+#     if not user:
+#         message = {"message": "User not found"}
+#         response.status_code = status.HTTP_403_FORBIDDEN
+#         return message
+#     creator_id = user.id
+#     crud.create_specific_goal(db=db, goal=goal, user_id=creator_id)
+#     template=crud.get_template(db=db, template_id=goal.template_id)
+#     if not template:
+#         message = {"message": "error: template not found"}
+#         response.status_code = status.HTTP_403_FORBIDDEN
+#         return message
+#     message = {"message": "Goal successfully created!"}
+#     response.status_code = status.HTTP_200_OK
+#     return message
+#
+
+class BigGoal(BaseModel):
+    goal_name: str
+    template_id: int
+    check_in_period: int
+    responses: list[schemas.ResponseBase] = []
 
 
 @app.post("/{username}/create_specific_goal")
-def create_specific_goal(username: str, goal: schemas.GoalSpecificCreate,
-                response: Response, db: Session=Depends(get_db)):
-    #session authentication
+def create_specific_goal(goaljson: BigGoal, username: str, db: Session=Depends(get_db)):
     user = crud.get_user_by_username(db=db, username=username)
     if not user:
-        message = {"message": "User not found"}
-        response.status_code = status.HTTP_403_FORBIDDEN
+        message={"message": "user does not exist"}
         return message
-    creator_id = user.id
-    crud.create_specific_goal(db=db, goal=goal, user_id=creator_id)
-    template=crud.get_template(db=db, template_id=goal.template_id)
+    template = crud.get_template(db=db, template_id=goaljson.template_id)
     if not template:
-        message = {"message": "error: template not found"}
-        response.status_code = status.HTTP_403_FORBIDDEN
+        message={"message": "template does not exist"}
         return message
-    message = {"message": "Goal successfully created!"}
-    response.status_code = status.HTTP_200_OK
-    return message
+    
+    
+    crud.create_specific_goal(db=db, goal_name=goaljson.goal_name, 
+                              check_in_period=goaljson.check_in_period,
+                              template_id=goaljson.template_id,
+                              user_id=user.id)
+                              
 
-@app.post("/create_template")
+@app.post("/{username}/create_template")
 def create_template(username: str, template: schemas.TemplateCreate,
                     response: Response, db: Session=Depends(get_db)):
     user = crud.get_user_by_username(db=db, username=username)
@@ -248,6 +285,22 @@ def create_template(username: str, template: schemas.TemplateCreate,
 def view_goals():
     return "kazoink!"
 
-@app.get("/{username}/templates")
+@app.get("/{username}/templates", response_model=list[schemas.Template])
 def view_premade_templates(db: Session=Depends(get_db), skip: int = 0, limit: int = 100):
     return crud.get_premade_templates(db=db, skip=skip, limit=limit)
+
+@app.get("/{username}/{goal_id}/responses")
+def view_responses(goal_id: int, db: Session=Depends(get_db)):
+    return crud.get_responses_by_goal(db=db, goal_id=goal_id)
+
+@app.post("/{username}/create_response")
+def create_response(response: schemas.ResponseCreate,
+                    db: Session=Depends(get_db)):
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    if not goal:
+        message = {"message": "error: goal not found"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
+    crud.create_response(db=db, response=response)
+    message = {"message": "response created!"}
+    return message

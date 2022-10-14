@@ -7,10 +7,10 @@ from sqlalchemy import Integer, Interval
 class ResponseBase(BaseModel):
     text: str
     question_id: int
-    goal_id: int
-    check_in_number = int
+    check_in_number: int
 
 class ResponseCreate(ResponseBase):
+    goal_id: int    
     pass
 
 class Response(ResponseBase):
@@ -31,7 +31,7 @@ class Question(QuestionBase):
     question_id: int
     template_id: int
     check_in_num: int
-    next_check_in_period: timedelta
+    next_check_in_period: int
     answers: list[Response] = []
 
     class Config:
@@ -47,7 +47,7 @@ class TemplateCreate(TemplateBase):
 
 class Template(TemplateBase):
     template_id: int
-    creator_id: int
+    creator_id: int | None
     questions: list[Question] = []
 
     class Config:
@@ -59,7 +59,7 @@ class Template(TemplateBase):
 
 class GoalBase(BaseModel):
     goal_name: str
-    next_check_in: date
+    next_check_in: int
 
 class GoalSpecificCreate(GoalBase):
     template_id: int
@@ -73,7 +73,7 @@ class Goal(GoalBase):
     creator_id: int
     is_paused: bool
     start_date: date
-    check_in_period: timedelta
+    check_in_period: int
     check_in_num: int
     is_public: bool
     answers: list[Response] = []
