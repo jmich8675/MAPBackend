@@ -337,7 +337,8 @@ def view_goal_progress(username: str, goal_id: int, response: Response, db: Sess
         "name": goal.goal_name,
         "start_date": goal.start_date,
         "check_in_period": goal.check_in_period,
-        "next_check_in": goal.next_check_in
+        "next_check_in": goal.next_check_in,
+        "is_achieved": goal.is_achieved
     }
     return message
 
@@ -369,7 +370,7 @@ def view_responses(goal_id: int, response: Response, db: Session=Depends(get_db)
         )
         writings.append(writing)
     return writings
-
+ 
 @app.post("/{username}/create_response")
 def create_response(resp: schemas.ResponseCreate, response: Response,
                     db: Session=Depends(get_db)):
