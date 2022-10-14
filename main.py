@@ -300,11 +300,6 @@ def create_custom_goal(goaljson: BigCustomGoal, username: str,
     message={"custom goal created!"}
     response.status_code = status.HTTP_201_CREATED
     return message
-        
-
-
-
-                              
 
 @app.post("/{username}/create_template")
 def create_template(username: str, template: schemas.TemplateCreate,
@@ -315,7 +310,8 @@ def create_template(username: str, template: schemas.TemplateCreate,
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
     creator_id = user.id
-    crud.create_template(db=db, template=template, creator_id=creator_id)
+    crud.create_template(db=db, name=template.name, is_custom=template.is_custom, 
+                         creator_id=creator_id)
     message = {"message": "template successfully created!"}
     return message
 
