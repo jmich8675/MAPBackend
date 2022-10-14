@@ -105,14 +105,14 @@ def get_responses_by_goal(db: Session, goal_id: int):
 def get_responses_by_question(db: Session, question_id: int):
     return db.query(models.Response).filter(models.Response.question_id == question_id).all()
 
-def update_goal_check_in_period(db: Session, goal_id: int, new_check_in: timedelta):
+def update_goal_check_in_period(db: Session, goal_id: int, new_check_in: int):
     goal = get_goal(db, goal_id)
     if goal:
         goal.check_in_period = new_check_in
         db.commit()
-        return "Check in period updated"
-    else:
-        return "Goal not found"
+        db.refresh(goal)
+        return True
+    return False
 
 def mark_goal_achieved(db: Session, goal_id: int):
     goal = get_goal(db, goal_id)

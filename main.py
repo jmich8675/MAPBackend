@@ -383,3 +383,27 @@ def delete_goal(username: str, goal_id: int, response: Response, db: Session=Dep
     message = {"message": "goal deleted!"}
     response.status_code = status.HTTP_200_OK
     return message
+
+class CheckInPeriod(BaseModel):
+    new_check_in: int
+
+@app.put("/{username}/{goal_id}/edit_check_in_period")
+def edit_check_in_period(username: str, goal_id: int, check_in_period: CheckInPeriod,
+                         response: Response, db: Session=Depends(get_db)):
+    user = crud.get_user_by_username(db=db, username=username)
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    if not goal:
+        message = {"message": "error: goal not found"}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return message
+    if goal.creator_id != user.id:
+        message = {"message": "not your goal"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
+    if not crud.update_goal_check_in_period(db=db, goal_id=goal_id, new_check_in=check_in_period.new_check_in):
+        message = {"message": "server error"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+    message = {"message": "check in period updated!"}
+    response.status_code = status.HTTP_200_OK
+    return message
