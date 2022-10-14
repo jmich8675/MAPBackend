@@ -30,7 +30,8 @@ def create_goal(db: Session, goal_name: str, check_in_period: int,
                          template_id: int, user_id: int):
     db_goal = models.Goal(goal_name=goal_name, template_id=template_id, creator_id=user_id, 
                           start_date=date.today(), check_in_num=0, 
-                          check_in_period=check_in_period, next_check_in=date.today())
+                          check_in_period=check_in_period,
+                          next_check_in=date.today() + timedelta(days=check_in_period))
     db.add(db_goal)
     db.commit()
     db.refresh(db_goal)
@@ -109,6 +110,7 @@ def update_goal_check_in_period(db: Session, goal_id: int, new_check_in: int):
     goal = get_goal(db, goal_id)
     if goal:
         goal.check_in_period = new_check_in
+        goal.next_check_in = goal.start_date + timedelta(days=goal.check_in_period)
         db.commit()
         db.refresh(goal)
         return True

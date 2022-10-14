@@ -320,9 +320,19 @@ def create_template(username: str, template: schemas.TemplateCreate,
     return message
 
 
-@app.get("/{username}/goals")
-def view_goals():
-    return "kazoink!"
+@app.get("/{username}/{goal_id}/progress")
+def view_goal_progress(username: str, goal_id: int, response: Response, db: Session=Depends(get_db)):
+    user = crud.get_user_by_username(db=db, username=username)
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    if not goal:
+        message = {"message": "error: goal not found"}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return message
+    if goal.creator_id != user.id:
+        message = {"message": "not your goal"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
+    return [goal.start_date, goal.check_in_period, goal.next_check_in]
 
 @app.get("/{username}/templates", response_model=list[schemas.Template])
 def view_premade_templates(db: Session=Depends(get_db), skip: int = 0, limit: int = 100):
