@@ -345,9 +345,30 @@ def view_goal_progress(username: str, goal_id: int, response: Response, db: Sess
 def view_premade_templates(db: Session=Depends(get_db), skip: int = 0, limit: int = 100):
     return crud.get_premade_templates(db=db, skip=skip, limit=limit)
 
+class PastWriting(BaseModel):
+    question: str
+    answer: str
+    check_in_number: int
+
 @app.get("/{username}/{goal_id}/responses")
-def view_responses(goal_id: int, db: Session=Depends(get_db)):
-    return crud.get_responses_by_goal(db=db, goal_id=goal_id)
+def view_responses(goal_id: int, response: Response, db: Session=Depends(get_db)):
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    if not goal:
+        message = {"message": "error: goal not found"}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return message
+    
+    writings = []
+    answers = crud.get_responses_by_goal(db=db, goal_id=goal_id)
+    for answer in answers:
+        question = crud.get_question(db=db, question_id=answer.question_id)
+        writing = PastWriting(
+                                question=question.text,
+                                answer=answer.text,
+                                check_in_number=answer.check_in_number
+        )
+        writings.append(writing)
+    return writings
 
 @app.post("/{username}/create_response")
 def create_response(resp: schemas.ResponseCreate, response: Response,

@@ -98,7 +98,7 @@ def get_questions_by_template(db: Session, template_id: int):
     return db.query(models.Question).filter(models.Question.template_id == template_id).all()
 
 def get_question(db: Session, question_id: int):
-    return db.query(models.Question).filter(models.Question.question_id == question_id).all()
+    return db.query(models.Question).filter(models.Question.question_id == question_id).first()
 
 def get_responses_by_goal(db: Session, goal_id: int):
     return db.query(models.Response).filter(models.Response.goal_id == goal_id).all()
