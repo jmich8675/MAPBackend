@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi.middleware import Middleware
 from jose import JWTError, jwt
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from functools import wraps
 import bcrypt
 from fastapi.routing import APIRoute
@@ -315,6 +315,11 @@ def create_template(username: str, template: schemas.TemplateCreate,
     message = {"message": "template successfully created!"}
     return message
 
+class GoalInfo(BaseModel):
+    name: str
+    start_date: date
+    check_in_period: int
+    next_check_in: date
 
 @app.get("/{username}/{goal_id}/progress")
 def view_goal_progress(username: str, goal_id: int, response: Response, db: Session=Depends(get_db)):
@@ -328,7 +333,13 @@ def view_goal_progress(username: str, goal_id: int, response: Response, db: Sess
         message = {"message": "not your goal"}
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
-    return [goal.start_date, goal.check_in_period, goal.next_check_in]
+    message = {
+        "name": goal.goal_name,
+        "start_date": goal.start_date,
+        "check_in_period": goal.check_in_period,
+        "next_check_in": goal.next_check_in
+    }
+    return message
 
 @app.get("/{username}/templates", response_model=list[schemas.Template])
 def view_premade_templates(db: Session=Depends(get_db), skip: int = 0, limit: int = 100):
