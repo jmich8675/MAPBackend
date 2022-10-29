@@ -84,7 +84,7 @@ class IsLoggedIn(APIRoute):
             #     detail="Could not validate credentials",
             #     headers={"WWW-Authenticate": "Bearer"},
             # )
-            urls = ["/login", "/signup", "/", "/docs", "/openapi.json", "/redoc"]
+            urls = ["/login", "/signup", "/", "/docs", "/openapi.json", "/redoc", "/update_database"]
             print(request.url.path)
             if (request.url.path not in urls):
                 token = request.headers.get('Authorization', None)
@@ -446,3 +446,21 @@ def edit_check_in_period(username: str, goal_id: int, check_in_period: CheckInPe
     message = {"message": "check in period updated!"}
     response.status_code = status.HTTP_200_OK
     return message
+
+@app.put("/update_database")
+def update_database(response: Response, db: Session=Depends(get_db)):
+    crud.update_can_check_in(db=db)
+    message = {"message": "database updated"}
+    response.status_code = status.HTTP_200_OK
+    return message
+
+@app.get("/{username}/{goal_id}/list_check_in_quetsions")
+def list_check_in_questions(username: str, goal_id: int, response: Response, db: Session=Depends(get_db)):
+    #error checking
+    user = crud.get_user_by_username(db=db, username=username)
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    return crud.get_check_in_questions(db=db, this_check_in=goal.check_in_num + 1, this_template=goal.template_id)
+
+@app.post("/{username}/{goal_id}/check_in")
+def check_in(response: Response, db: Session=Depends(get_db)):
+    return

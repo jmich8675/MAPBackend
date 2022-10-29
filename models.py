@@ -34,6 +34,7 @@ class Goal(Base):
     is_public = Column(Boolean, default=False)
     template_id = Column(Integer, index=True)
     is_achieved = Column(Boolean, default=False)
+    can_check_in = Column(Boolean, default=False)
 
     creator = relationship("User", back_populates="goals")
     answers = relationship("Response", back_populates="goal", passive_deletes=True)
@@ -72,5 +73,5 @@ class Response(Base):
     check_in_number = Column(Integer, index=True)
 
     #question = relationship("Question", back_populates="answers")
-    goal = relationship("Goal", backref=backref("responses",passive_deletes=True))
+    goal = relationship("Goal", back_populates="answers")
     

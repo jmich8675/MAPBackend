@@ -1,5 +1,6 @@
 import enum
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from datetime import date, timedelta
 import models, schemas
 
@@ -137,5 +138,14 @@ def toggle_goal_paused(db: Session, goal_id: int):
             db.commit()
             return "Goal Paused"
     else:
-        return "Goal not found"
-                  
+        return "Goal not found"                  
+
+def update_can_check_in(db: Session):
+    db.query(models.Goal).update({'can_check_in': models.Goal.next_check_in <= date.today()})
+    db.commit()
+    return "goals updated"
+
+def get_check_in_questions(db: Session, this_check_in: int, this_template: int):
+    return db.query(models.Question) \
+        .filter(models.Question.template_id == this_template) \
+        .filter(or_(models.Question.check_in_num == -1, models.Question.check_in_num == this_check_in)).all()

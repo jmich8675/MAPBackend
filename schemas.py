@@ -77,6 +77,7 @@ class Goal(GoalBase):
     check_in_num: int
     is_public: bool
     is_achieved: bool
+    can_check_in: bool
     answers: list[Response] = []
 
     class Config:
