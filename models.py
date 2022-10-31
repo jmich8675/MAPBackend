@@ -1,8 +1,7 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Interval, Enum
-from sqlalchemy.orm import relationship, backref
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Enum
+from sqlalchemy.orm import relationship
 import enum
 from database import Base
-from datetime import timedelta
 
 class response_types(enum.Enum):
     TYPE = 0
@@ -37,7 +36,7 @@ class Goal(Base):
     can_check_in = Column(Boolean, default=False)
 
     creator = relationship("User", back_populates="goals")
-    answers = relationship("Response", back_populates="goal", passive_deletes=True)
+    answers = relationship("Response", back_populates="goal", cascade="all, delete", passive_deletes=True)
 
 class Template(Base):
     __tablename__ = "templates"
@@ -74,4 +73,22 @@ class Response(Base):
 
     #question = relationship("Question", back_populates="answers")
     goal = relationship("Goal", back_populates="answers")
-    
+
+class Post(Base):
+    __tablename__ = "posts"
+
+    post_id = Column(Integer, primary_key=True, index=True)
+    title = Column(String, index=True)
+    content = Column(String, index=True)
+    post_author = Column(Integer, ForeignKey("users.id"))
+    timestamp = Column(Date, index=True)
+    comments = relationship("Comment", backref="posts", cascade = "all, delete-orphan", passive_deletes=True)
+
+class Comment(Base):
+    __tablename__ = "comments"
+
+    comment_id = Column(Integer, primary_key=True, index=True)
+    content = Column(String, index=True)
+    timestamp = Column(Date, index=True)
+    post_id = Column(Integer, ForeignKey("posts.post_id", ondelete="CASCADE"))
+    comment_author = Column(Integer, ForeignKey("users.id"))
