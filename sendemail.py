@@ -9,34 +9,34 @@ env_path = Path('.')/'.env'
 load_dotenv(dotenv_path=env_path)
 
 
-def sendmail(subject: str = None, body: str = None, toemail: str = None):
+def sendmail(message):
 
     gmail_user = os.getenv("EMAILID")
 
     gmail_password = os.getenv("PASSWORD")
 
 
-    sent_from = gmail_user
+    # sent_from = gmail_user
 
-    to = [gmail_user]
+    # to = [gmail_user]
 
-    subject = subject
+    # subject = subject
 
-    body = 'consectetur adipiscing elit'
-
-
-    email_text = """\
-
-    From: %s
-
-    To: %s
-
-    Subject: %s
+    # body = 'consectetur adipiscing elit'
 
 
-    %s
+    # email_text = """\
 
-    """ % (sent_from, ", ".join(to), subject, body)
+    # From: %s
+
+    # To: %s
+
+    # Subject: %s
+
+
+    # %s
+
+    # """ % (sent_from, ", ".join(to), subject, body)
 
 
     try:
@@ -47,7 +47,8 @@ def sendmail(subject: str = None, body: str = None, toemail: str = None):
 
         smtp_server.login(gmail_user, gmail_password)
 
-        smtp_server.sendmail(sent_from, to, email_text)
+        #smtp_server.sendmail(sent_from, to, email_text)
+        smtp_server.send_message(message)
 
         smtp_server.close()
 
@@ -58,8 +59,8 @@ def sendmail(subject: str = None, body: str = None, toemail: str = None):
         print ("Something went wrong….",ex)
 
 
-sendmail(subject="First One")
-sendmail(subject="Second One")
-sendmail(subject="Third One")
-sendmail(subject="Fourth One")
-sendmail(subject="fifth One")
+# sendmail(subject="First One")
+# sendmail(subject="Second One")
+# sendmail(subject="Third One")
+# sendmail(subject="Fourth One")
+# sendmail(subject="fifth One")

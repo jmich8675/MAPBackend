@@ -14,22 +14,13 @@ from functools import wraps
 import bcrypt
 from fastapi.routing import APIRoute
 from fastapi.exceptions import RequestValidationError
+from database import get_db
 
 #DATABASE
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 import crud, models, schemas
 from database import SessionLocal, engine
-
-models.Base.metadata.create_all(bind=engine)
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
-#DATABASE
 
 app = FastAPI()
 
@@ -403,7 +394,6 @@ def achieved_goal(username: str, goal_id: int, response: Response, db: Session=D
     response.status_code = status.HTTP_200_OK
     return message
 
-@app.delete("/{username}/{goal_id}/delete_goal")
 def delete_goal(username: str, goal_id: int, response: Response, db: Session=Depends(get_db)):
     user = crud.get_user_by_username(db=db, username=username)
     goal = crud.get_goal(db=db, goal_id=goal_id)
@@ -478,6 +468,7 @@ def check_in(username: str, goal_id: int, check_in_answers: CheckInAnswers,
         
         crud.create_response(db=db, text=answer.text, question_id=answer.question_id,
                              check_in_number=0, goal_id=goal.id)
+    crud.update_
     message={"answers created successfully!"}
     response.status_code = status.HTTP_201_CREATED
     return message
