@@ -455,12 +455,29 @@ def update_database(response: Response, db: Session=Depends(get_db)):
     return message
 
 @app.get("/{username}/{goal_id}/list_check_in_quetsions")
-def list_check_in_questions(username: str, goal_id: int, response: Response, db: Session=Depends(get_db)):
+def list_check_in_questions(username: str, goal_id: int, db: Session=Depends(get_db)):
     #error checking
     user = crud.get_user_by_username(db=db, username=username)
     goal = crud.get_goal(db=db, goal_id=goal_id)
     return crud.get_check_in_questions(db=db, this_check_in=goal.check_in_num + 1, this_template=goal.template_id)
 
+class CheckInAnswers(BaseModel):
+    answers: list[schemas.ResponseBase] = []
+
 @app.post("/{username}/{goal_id}/check_in")
-def check_in(response: Response, db: Session=Depends(get_db)):
-    return
+def check_in(username: str, goal_id: int, check_in_answers: CheckInAnswers,
+             response: Response, db: Session=Depends(get_db)):
+    
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    for answer in check_in_answers.answers:
+        question = crud.get_question(db=db, question_id=answer.question_id)
+        if not question:
+            message={"message": "question does not exist"}
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return message
+        
+        crud.create_response(db=db, text=answer.text, question_id=answer.question_id,
+                             check_in_number=0, goal_id=goal.id)
+    message={"answers created successfully!"}
+    response.status_code = status.HTTP_201_CREATED
+    return message

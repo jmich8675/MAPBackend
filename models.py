@@ -26,7 +26,7 @@ class Goal(Base):
     goal_name = Column(String, index=True)
     creator_id = Column(Integer, ForeignKey("users.id"))
     is_paused = Column(Boolean, default=False)
-    start_date = Column(Date, index=True)
+    start_date = Column(Date, index=True)   
     check_in_period = Column(Integer, index=True)
     next_check_in = Column(Date, index=True)
     check_in_num = Column(Integer, index=True)
