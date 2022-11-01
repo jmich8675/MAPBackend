@@ -1,8 +1,6 @@
-from datetime import date, timedelta
+from datetime import date
 from pydantic import BaseModel
 import enum
-
-from sqlalchemy import Integer, Interval
 
 class ResponseBase(BaseModel):
     text: str
@@ -18,7 +16,6 @@ class Response(ResponseBase):
     
     class Config:
         orm_mode = True
-
 
 class QuestionBase(BaseModel):
     text: str
@@ -37,7 +34,6 @@ class Question(QuestionBase):
     class Config:
         orm_mode = True
 
-
 class TemplateBase(BaseModel):
     name: str
     is_custom: bool
@@ -52,10 +48,6 @@ class Template(TemplateBase):
 
     class Config:
         orm_mode = True
-
-
-
-
 
 class GoalBase(BaseModel):
     goal_name: str
@@ -99,3 +91,33 @@ class User(UserBase):
     class Config:
         orm_mode = True
 
+class CommentBase(BaseModel):
+    content: str
+
+class CommentCreate(CommentBase):
+    pass
+
+class Comment(CommentBase):
+    comment_id: int
+    timestamp: date
+    post_id: int
+    comment_author: int
+    
+    class Config:
+        orm_mode = True
+
+class PostBase(BaseModel):
+    title: str
+    content: str
+
+class PostCreate(PostBase):
+    pass
+
+class Post(PostBase):
+    post_id: int
+    post_author: int
+    timestamp: date
+    comments: list[Comment] = []
+
+    class Config:
+        orm_mode = True
