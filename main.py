@@ -452,7 +452,7 @@ def list_check_in_questions(username: str, goal_id: int, db: Session=Depends(get
     return crud.get_check_in_questions(db=db, this_check_in=goal.check_in_num + 1, this_template=goal.template_id)
 
 class CheckInAnswers(BaseModel):
-    answers: list[schemas.ResponseBase] = []
+    answers: list[SmallResponse] = []
 
 @app.post("/{username}/{goal_id}/check_in")
 def check_in(username: str, goal_id: int, check_in_answers: CheckInAnswers,
@@ -467,8 +467,8 @@ def check_in(username: str, goal_id: int, check_in_answers: CheckInAnswers,
             return message
         
         crud.create_response(db=db, text=answer.text, question_id=answer.question_id,
-                             check_in_number=0, goal_id=goal.id)
-    crud.update_
+                             check_in_number=goal.check_in_num+1, goal_id=goal.id)
+    crud.after_check_in_update(goal_id=goal_id, db=db)
     message={"answers created successfully!"}
     response.status_code = status.HTTP_201_CREATED
     return message
