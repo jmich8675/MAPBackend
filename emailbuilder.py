@@ -2,9 +2,10 @@ from email.message import EmailMessage
 from email.utils import formataddr
 from sendemail import sendmail
 from database import SessionLocal
-from main import get_db
+from database import get_db
 from models import User, Goal
 from crud import get_goal
+from fastapi import Depends
 
 # #DATABASE
 from sqlalchemy.orm import Session
@@ -40,8 +41,7 @@ def createRemainderMessage():
     pass
 
 def queryDB():
-    db: Session = get_db()
-    goal: Goal = get_goal(db, 2)
+    goal: Goal = get_goal(get_db(), 2)
     print(goal)
 
 
