@@ -1,8 +1,7 @@
 from email.message import EmailMessage
 from email.utils import formataddr
 from sendemail import sendmail
-from database import SessionLocal
-from database import get_db
+import database
 from models import User, Goal
 from crud import get_goal
 from fastapi import Depends
@@ -41,9 +40,8 @@ def createRemainderMessage():
     pass
 
 def queryDB():
-    goal: Goal = get_goal(get_db(), 2)
-    print(goal)
-
+    goal: Goal = get_goal(next(database.get_db()), 1)
+    print(goal.goal_name)
 
 def sendCheckin():
     sendmail(createcheckinMessage())

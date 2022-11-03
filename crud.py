@@ -231,6 +231,12 @@ def update_can_check_in(db: Session):
     db.commit()
     return "goals updated"
 
+def after_check_in_update(goal_id: int, db: Session):
+    db.query(models.Goal).filter(models.Goal.id == goal_id) \
+        .update({'next_check_in': date.today()+timedelta(days=models.Goal.check_in_period)}) \
+        .update({'check_in_num': models.Goal.check_in_num + 1})
+    return
+
 
 
 ###############################################################################
