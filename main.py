@@ -444,7 +444,7 @@ def update_database(response: Response, db: Session=Depends(get_db)):
     response.status_code = status.HTTP_200_OK
     return message
 
-@app.get("/{username}/{goal_id}/list_check_in_quetsions")
+@app.get("/{username}/{goal_id}/list_check_in_questions")
 def list_check_in_questions(username: str, goal_id: int, db: Session=Depends(get_db)):
     #error checking
     user = crud.get_user_by_username(db=db, username=username)
