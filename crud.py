@@ -240,6 +240,11 @@ def after_check_in_update(goal_id: int, db: Session):
     
     db.query(models.Goal).filter(models.Goal.id == goal_id) \
         .update({'check_in_num': models.Goal.check_in_num + 1})
+    
+    db.query(models.Goal).filter(models.Goal.id == goal_id) \
+        .update({'can_check_in': False})
+    
+    db.commit()
     return
 
 
