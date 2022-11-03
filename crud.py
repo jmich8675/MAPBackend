@@ -212,24 +212,26 @@ def mark_goal_achieved(db: Session, goal_id: int):
         return True
     return False
 
-def toggle_goal_paused(db: Session, goal_id: int):
-    goal = get_goal(db, goal_id)
-    if goal:
-        if goal.is_pause == True:
-            goal.is_paused = False
-            db.commit()
-            return "Goal Unpaused"
-        else:
-            goal.is_paused = True
-            db.commit()
-            return "Goal Paused"
-    else:
-        return "Goal not found"                  
-
 def update_can_check_in(db: Session):
     db.query(models.Goal).update({'can_check_in': models.Goal.next_check_in <= date.today()})
     db.commit()
     return "goals updated"
+
+def toggle_goal_paused(db: Session, goal_id: int):
+    goal = get_goal(db, goal_id)
+    if goal:
+        if goal.is_paused == True:
+            goal.is_paused = False
+            update_can_check_in(db=db)
+            db.commit()
+            return "Goal Unpaused"
+        else:
+            goal.is_paused = True
+            goal.can_check_in = False
+            db.commit()
+            return "Goal Paused"
+    else:
+        return "Goal not found"                  
 
 def after_check_in_update(goal_id: int, db: Session):
     db.query(models.Goal).filter(models.Goal.id == goal_id) \

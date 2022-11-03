@@ -206,6 +206,18 @@ def login(user: User, response: Response, db: Session = Depends(get_db)):
     response.status_code = status.HTTP_200_OK
     return message  
 
+def verify_username_and_goal(username: str, goal_id: int, response: Response,
+                             db: Session):
+    user = crud.get_user_by_username(db=db, username=username)
+    goal = crud.get_goal(db=db, goal_id=goal_id)
+    if not goal:
+        message = {"message": "error: goal not found"}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return message
+    if goal.creator_id != user.id:
+        message = {"message": "not your goal"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
 
 @app.get("/{username}")
 def home(username: str, db: Session=Depends(get_db)):
@@ -220,7 +232,6 @@ class BigGoal(BaseModel):
     template_id: int
     check_in_period: int
     responses: list[SmallResponse] = []
-
 
 @app.post("/{username}/create_specific_goal")
 def create_specific_goal(goaljson: BigGoal, username: str, response: Response, db: Session=Depends(get_db)):
@@ -471,4 +482,12 @@ def check_in(username: str, goal_id: int, check_in_answers: CheckInAnswers,
     crud.after_check_in_update(goal_id=goal_id, db=db)
     message={"answers created successfully!"}
     response.status_code = status.HTTP_201_CREATED
+    return message
+
+@app.put("/{username}/{goal_id}/togglepause")
+def togglepause(username: str, goal_id: int, response: Response, db: Session=Depends(get_db)):
+    verify_username_and_goal(username=username, goal_id=goal_id, db=db, response=response)
+    crud.toggle_goal_paused(db=db, goal_id=goal_id)
+    message={"Pause Toggled!"}
+    response.status_code = status.HTTP_200_OK
     return message
