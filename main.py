@@ -221,7 +221,7 @@ def verify_username_and_goal(username: str, goal_id: int, response: Response,
 
 @app.get("/{username}")
 def home(username: str, db: Session=Depends(get_db)):
-    return {"message": crud.get_user_goals(db=db, username=username)}
+    return {"message": crud.get_unachieved_goals(db=db, username=username)}
 
 class SmallResponse(BaseModel):
     text: str
@@ -497,6 +497,6 @@ def achieved_goals(username: str, db: Session=Depends(get_db)):
     return crud.get_achieved_goals(username=username, db=db)
 
 @app.post("/{username}/create_post")
-def create_post(username: str, title: str,  content: str, db: Session=Depends(get_db)):
+def create_post(username: str, title: str,  content: str, response: Response, db: Session=Depends(get_db)):
     user = crud.get_user_by_username(db=db, username=username)
     crud.create_post(db=db, title=title, content=content, post_author=user.id)

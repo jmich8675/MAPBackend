@@ -115,6 +115,11 @@ def get_achieved_goals(username: str, db: Session):
     return db.query(models.Goal).filter(models.Goal.creator_id == user.id) \
         .filter(models.Goal.is_achieved == True).all()
 
+def get_unachieved_goals(username: str, db: Session):
+    user=db.query(models.User).filter(models.User.username == username).first()
+    return db.query(models.Goal).filter(models.Goal.creator_id == user.id) \
+        .filter(models.Goal.is_achieved == False).all()
+
 ### GET TEMPLATES
 
 def get_template(db: Session, template_id: int):
