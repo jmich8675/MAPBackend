@@ -107,6 +107,9 @@ def get_user_goals(username: str, db: Session, skip: int = 0, limit: int = 100):
     user=db.query(models.User).filter(models.User.username == username).first()
     return user.goals
 
+def get_checkin_goals(db: Session):
+    return db.query(models.Goal).filter(models.Goal.can_check_in == True).all()
+
 ### GET TEMPLATES
 
 def get_template(db: Session, template_id: int):
@@ -213,7 +216,8 @@ def mark_goal_achieved(db: Session, goal_id: int):
     return False
 
 def update_can_check_in(db: Session):
-    db.query(models.Goal).update({'can_check_in': models.Goal.next_check_in <= date.today()})
+    db.query(models.Goal).filter(models.Goal.is_paused == False) \
+        .update({'can_check_in': models.Goal.next_check_in <= date.today()})
     db.commit()
     return "goals updated"
 

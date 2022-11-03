@@ -75,7 +75,7 @@ class IsLoggedIn(APIRoute):
             #     detail="Could not validate credentials",
             #     headers={"WWW-Authenticate": "Bearer"},
             # )
-            urls = ["/login", "/signup", "/", "/docs", "/openapi.json", "/redoc", "/update_database"]
+            urls = ["/login", "/signup", "/", "/docs", "/openapi.json", "/redoc", "/update_database", "/checkingoals"]
             print(request.url.path)
             if (request.url.path not in urls):
                 token = request.headers.get('Authorization', None)
@@ -218,6 +218,10 @@ def verify_username_and_goal(username: str, goal_id: int, response: Response,
         message = {"message": "not your goal"}
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
+
+@app.get("/checkingoals")
+def checkingoals(db: Session=Depends(get_db)):
+    return crud.get_checkin_goals(db=db)
 
 @app.get("/{username}")
 def home(username: str, db: Session=Depends(get_db)):
