@@ -234,8 +234,11 @@ def toggle_goal_paused(db: Session, goal_id: int):
         return "Goal not found"                  
 
 def after_check_in_update(goal_id: int, db: Session):
+    goal = get_goal(db=db, goal_id=goal_id)
     db.query(models.Goal).filter(models.Goal.id == goal_id) \
-        .update({'next_check_in': date.today()+timedelta(days=models.Goal.check_in_period)}) \
+        .update({'next_check_in': date.today() + timedelta(days=goal.check_in_period)}) \
+    
+    db.query(models.Goal).filter(models.Goal.id == goal_id) \
         .update({'check_in_num': models.Goal.check_in_num + 1})
     return
 
