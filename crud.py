@@ -38,7 +38,7 @@ def create_post(db: Session, title: str, content: str, post_author: int):
     return db_post
 
 def create_comment(db: Session, content:str, post_id: int, comment_author: int):
-    db_comment = models.Comment(content=content, timestamp=date.now(), post_id=post_id, comment_author=comment_author)
+    db_comment = models.Comment(content=content, timestamp=datetime.now(), post_id=post_id, comment_author=comment_author)
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)

@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Enum
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Enum, DateTime
 from sqlalchemy.orm import relationship
 import enum
 from database import Base
@@ -81,7 +81,7 @@ class Post(Base):
     title = Column(String, index=True)
     content = Column(String, index=True)
     post_author = Column(Integer, ForeignKey("users.id"))
-    timestamp = Column(Date, index=True)
+    timestamp = Column(DateTime, index=True)
     comments = relationship("Comment", backref="posts", cascade = "all, delete-orphan", passive_deletes=True)
 
 class Comment(Base):
@@ -89,6 +89,6 @@ class Comment(Base):
 
     comment_id = Column(Integer, primary_key=True, index=True)
     content = Column(String, index=True)
-    timestamp = Column(Date, index=True)
+    timestamp = Column(DateTime, index=True)
     post_id = Column(Integer, ForeignKey("posts.post_id", ondelete="CASCADE"))
     comment_author = Column(Integer, ForeignKey("users.id"))

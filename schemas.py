@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from pydantic import BaseModel
 import enum
 
@@ -99,7 +99,7 @@ class CommentCreate(CommentBase):
 
 class Comment(CommentBase):
     comment_id: int
-    timestamp: date
+    timestamp: datetime
     post_id: int
     comment_author: int
     
@@ -116,7 +116,7 @@ class PostCreate(PostBase):
 class Post(PostBase):
     post_id: int
     post_author: int
-    timestamp: date
+    timestamp: datetime
     comments: list[Comment] = []
 
     class Config:
