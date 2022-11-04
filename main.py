@@ -508,7 +508,7 @@ def create_post(username: str, postjson: PostInfo, response: Response, db: Sessi
         message={"User Not Found"}
         response.status_code = status.HTTP_400_BAD_REQUEST
         return message
-    crud.create_post(db=db, title=PostInfo.title, content=PostInfo.content, post_author=user.id)
+    crud.create_post(db=db, title=postjson.title, content=postjson.content, post_author=user.id)
     message={"Post Created!"}
     response.status_code = status.HTTP_201_CREATED
     return message
