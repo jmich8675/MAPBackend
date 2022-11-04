@@ -147,8 +147,12 @@ def get_posts_by_author(db: Session, post_author: int):
 def get_post_by_id(db: Session, post_id: int):
     return db.query(models.Post).filter(models.Post.post_id == post_id).first()
 
-def get_posts_after_timestamp(db: Session, timestamp: date):
+def get_posts_after_timestamp(db: Session, timestamp: datetime):
     return db.query(models.Post).filter(models.Post.timestamp > timestamp).all()
+
+def get_feed(db: Session, skip: int=0, limit: int=100):
+    return db.query(models.Post).order_by(models.Post.timestamp) \
+        .offset(skip).limit(limit).all()
 
 ### GET QUESTIONS
 

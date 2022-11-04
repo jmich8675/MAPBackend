@@ -515,3 +515,7 @@ def create_post(username: str, postjson: PostInfo, response: Response, db: Sessi
     message={"Post Created!"}
     response.status_code = status.HTTP_201_CREATED
     return message
+
+@app.get("/{username}/see_posts")
+def get_posts(db: Session=Depends(get_db), skip: int = 0, limit: int = 100):
+    return crud.get_feed(db=db, skip=skip, limit=limit)
