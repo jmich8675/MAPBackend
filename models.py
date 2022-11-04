@@ -17,6 +17,7 @@ class User(Base):
     email = Column(String, unique=True, index=True)
 
     goals = relationship("Goal", back_populates="creator")
+    myposts = relationship("Post", back_populates="poster")
     #templates = relationship("Template", back_populates="creator")
 
 class Goal(Base):
@@ -82,6 +83,8 @@ class Post(Base):
     content = Column(String, index=True)
     post_author = Column(Integer, ForeignKey("users.id"))
     timestamp = Column(DateTime, index=True)
+
+    poster = relationship("User", back_populates="myposts")
     comments = relationship("Comment", backref="posts", cascade = "all, delete-orphan", passive_deletes=True)
 
 class Comment(Base):
