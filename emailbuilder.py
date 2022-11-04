@@ -19,7 +19,7 @@ def createMessage(emaildata: Emaildata):
     msg['Subject'] = "MAP: Reminder to Check In!" if emaildata.remainder else "MAP: It's Time to Check In!"
     msg['From'] = formataddr(("MAPS", "yoloyoyoyolo12345@gmail.com"))
     #msg['Reply-To'] = formataddr(("MAPS", "email2@domain2.example"))
-    msg['To'] = formataddr(("John Smith", "yoloyoyoyolo12345@gmail.com")) #f"emaildata.email"
+    msg['To'] = formataddr((emaildata.user, emaildata.email)) #f"emaildata.email"
     body = f"""
     <!DOCTYPE html>
     <html lang="en">
@@ -71,7 +71,8 @@ def generate_list_email_data():
     for goal in goals:
         user: User = get_user(db, goal.creator_id)
         #print(f"{user.username}, {user.email}")
-        url = f"http://localhost:3000/email/{user.username}/{goal.id}"
+        #url = f"http://localhost:3000/email/{user.username}/{goal.id}"
+        url = "http://localhost:3000/login"
         responses: list[Response] = get_responses_by_goal(db, goal.id)
         # filter responses to only have responses with previous check_in_num
         responses = [response for response in responses if response.check_in_number == goal.check_in_num]
