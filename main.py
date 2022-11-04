@@ -405,6 +405,7 @@ def achieved_goal(username: str, goal_id: int, response: Response, db: Session=D
     response.status_code = status.HTTP_200_OK
     return message
 
+@app.delete("/{username}/{goal_id}/delete_goal")
 def delete_goal(username: str, goal_id: int, response: Response, db: Session=Depends(get_db)):
     user = crud.get_user_by_username(db=db, username=username)
     goal = crud.get_goal(db=db, goal_id=goal_id)
@@ -496,7 +497,18 @@ def togglepause(username: str, goal_id: int, response: Response, db: Session=Dep
 def achieved_goals(username: str, db: Session=Depends(get_db)):
     return crud.get_achieved_goals(username=username, db=db)
 
+class PostInfo(BaseModel):
+    title: str
+    content: str
+
 @app.post("/{username}/create_post")
-def create_post(username: str, title: str,  content: str, response: Response, db: Session=Depends(get_db)):
+def create_post(username: str, postjson: PostInfo, response: Response, db: Session=Depends(get_db)):
     user = crud.get_user_by_username(db=db, username=username)
-    crud.create_post(db=db, title=title, content=content, post_author=user.id)
+    if not user:
+        message={"User Not Found"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return message
+    crud.create_post(db=db, title=PostInfo.title, content=PostInfo.content, post_author=user.id)
+    message={"Post Created!"}
+    response.status_code = status.HTTP_201_CREATED
+    return message
