@@ -24,7 +24,6 @@ from database import engine
 
 models.Base.metadata.create_all(bind=engine)
 
-
 app = FastAPI()
 
 #REQUEST MODELS
@@ -220,7 +219,20 @@ def verify_username_and_goal(username: str, goal_id: int, response: Response,
     if goal.creator_id != user.id:
         message = {"message": "not your goal"}
         response.status_code = status.HTTP_403_FORBIDDEN
-        return message\
+        return message
+
+def verify_username_and_post(username: str, post_id: int, response: Response,
+                             db: Session):
+    user = crud.get_user_by_username(db=db, username=username)
+    post = crud.get_post_by_id(db=db, post_id=post_id)
+    if not post:
+        message = {"message": "error: post not found"}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return message
+    if post.post_author != user.id:
+        message = {"message": "not your post"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
 
 @app.get("/{username}")
 def home(username: str, db: Session=Depends(get_db)):
@@ -516,8 +528,24 @@ def create_post(username: str, postjson: PostInfo, response: Response, db: Sessi
     response.status_code = status.HTTP_201_CREATED
     return message
 
-
-
 @app.get("/{username}/see_posts", response_model=list[schemas.Post])
 def get_posts(db: Session=Depends(get_db), skip: int = 0, limit: int = 100):
     return crud.get_feed(db=db, skip=skip, limit=limit)
+
+class EditPost(BaseModel):
+    content: str
+
+@app.put("/{username}/{post_id}/edit_post")
+def edit_post(username: str, post_id: int, editjson: EditPost, 
+              response: Response, db: Session=Depends(get_db)):
+    verify_username_and_post(username=username, post_id=post_id,
+                             response=response, db=db)
+    result = crud.edit_post_content(db=db, post_id=post_id, 
+                                  newcontent=editjson.content)
+    if result:
+        message = {"Successfully Edited!"}
+        response.status_code = status.HTTP_200_OK
+    else:
+        message = {"Edit Failed!"} 
+        response.status_code = status.HTTP_400_BAD_REQUEST
+    return message   
