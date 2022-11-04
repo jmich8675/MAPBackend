@@ -355,7 +355,8 @@ def view_goal_progress(username: str, goal_id: int, response: Response, db: Sess
         "start_date": goal.start_date,
         "check_in_period": goal.check_in_period,
         "next_check_in": goal.next_check_in,
-        "is_achieved": goal.is_achieved
+        "is_achieved": goal.is_achieved,
+        "is_paused": goal.is_paused
     }
     return message
 
