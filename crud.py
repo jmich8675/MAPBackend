@@ -126,7 +126,7 @@ def get_template(db: Session, template_id: int):
     return db.query(models.Template).filter(models.Template.template_id == template_id).first()
     
 def get_premade_templates(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Template).filter(models.Template.is_custom == False).offset(skip).limit(limit).all()       
+    return db.query(models  .Template).filter(models.Template.is_custom == False).offset(skip).limit(limit).all()       
 
 ### GET COMMENTS
 
