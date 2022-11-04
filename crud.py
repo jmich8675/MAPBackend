@@ -1,7 +1,7 @@
 import enum
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
-from datetime import date, timedelta
+from datetime import date, timedelta, datetime
 import models, schemas
 
 
@@ -31,7 +31,7 @@ def create_response(db: Session, text: str, question_id: int, check_in_number: i
     return db_response
 
 def create_post(db: Session, title: str, content: str, post_author: int):
-    db_post = models.Post(title=title, content=content, post_author=post_author, timestamp=date.now())
+    db_post = models.Post(title=title, content=content, post_author=post_author, timestamp=datetime.now())
     db.add(db_post)
     db.commit()
     db.refresh(db_post)
