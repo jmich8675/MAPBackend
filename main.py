@@ -38,10 +38,10 @@ def get_db():
 
 # DATABASE
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
 class TokenData(BaseModel):
     username: Union[str, None] = None
-
-app = FastAPI()
 
 
 # REQUEST MODELS
@@ -75,8 +75,6 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None):
     return encoded_jwt
 
 
-
-
 # returns current user as a models.User object
 async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
     credentials_exception = HTTPException(
@@ -100,58 +98,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme), db: Session = De
     return user
 
 
-
-#
-# def verify_access_token(token: str, username: str):
-#     print("verify function")
-#     try:
-#         print("inside try")
-#         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-#         username_payload: str = payload.get("sub")
-#         if username_payload is None:
-#             return False
-#         if username_payload != username:
-#             return False
-#     except JWTError:
-#         return False
-#     return True
-
-
-# class IsLoggedIn(APIRoute):
-#     def get_route_handler(self) -> callable:
-#         original_route_handler = super().get_route_handler()
-#
-#         async def route_authentication_handler(request: Request) -> Response:
-#             # credentials_exception = HTTPException(
-#             #     status_code=status.HTTP_401_UNAUTHORIZED,
-#             #     detail="Could not validate credentials",
-#             #     headers={"WWW-Authenticate": "Bearer"},
-#             # )
-#             urls = ["/login", "/signup", "/", "/docs", "/openapi.json", "/redoc"]
-#             print(request.url.path)
-#             if (request.url.path not in urls):
-#                 token = request.headers.get('Authorization', None)
-#                 username = request.url.path.split('/')[1]
-#
-#                 if (not token) or (not verify_access_token(token, username)):
-#                     return JSONResponse(content={
-#                         "message": "User Not logged in"
-#                     }, status_code=status.HTTP_400_BAD_REQUEST)
-#             try:
-#                 return await original_route_handler(request)
-#             except RequestValidationError as exc:
-#                 body = await request.body()
-#                 detail = {"errors": exc.errors(), "body": body.decode()}
-#                 raise HTTPException(status_code=422, detail=detail)
-#
-#         return route_authentication_handler
-
-
-
-
-
-# JWT STUFF
-# CORS STUFF
 origins = [
     "http://localhost:3000"
 ]
@@ -167,7 +113,6 @@ middleware = [
 ]
 
 app = FastAPI(middleware=middleware)
-# app.router.route_class = IsLoggedIn
 
 
 # CORS STUFF
@@ -177,7 +122,6 @@ def root():
     return {"message": "Welcome to MAP website"}
 
 
-# trying post request
 @app.post("/signup")
 def signup(user: User, response: Response, db: Session = Depends(get_db)):
     print(f"signup {user.username} {user.email} {user.password}")
@@ -213,38 +157,40 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
 
     # if not successful database transaction
     if not new_user:
-        message = {"message": "Error Occured while creating the user"}
+        message = {"message": "Error Occurred while creating the user"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
 
-    # generate JWT token and send it as header along with the 200 ok status
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
-    )
     message = {"message": "User created Successfully",
                "username": user.username,
-               "access_token": access_token,
                "token_type": "Bearer"}
     response.status_code = status.HTTP_200_OK
     return message
 
 
-
 def verify_password(plain_password, hashed_password):
-    return bcrypt.checkpw(plain_password, hashed_password)
+    print("Plain Password:")
+    print(plain_password)
+    print(type(plain_password))
+    print("Hashed Password:")
+    print(hashed_password)
+    print(type(hashed_password))
+
+    print("Encoded Plain Password:")
+    print(plain_password.encode('utf8'))
+    print(type(plain_password.encode('utf8')))
+
+    return bcrypt.checkpw(plain_password.encode('utf8'), hashed_password.encode('utf8'))
+
 
 def authenticate_user(db, username: str, password: str):
     user = crud.get_user_by_username(db, username)
     print(user.pw_hash)
 
-
-
     if not user:
         print(not user)
         return False
-    # TODO: fix weird encoding issues around here
-    if not verify_password(user.pw_hash, bytes(user.pw_hash, 'utf-8')):
+    if not verify_password(password, user.pw_hash):
         print("failed to verify")
         return False
     return user
@@ -264,9 +210,6 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
-
-
-
 
 
 #
@@ -308,9 +251,10 @@ async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends(
 #     response.status_code = status.HTTP_200_OK
 #     return message
 
-@app.get("/{username}")
-def home(username: str, db: Session = Depends(get_db)):
-    return {"message": crud.get_user_goals(db=db, username=username)}
+@app.get("/goals")
+def home(db: Session = Depends(get_db),
+         current_user: models.User = Depends(get_current_user)):
+    return {"message": crud.get_user_goals(db=db, username=current_user.username)}
 
 
 class SmallResponse(BaseModel):
@@ -325,13 +269,12 @@ class BigGoal(BaseModel):
     responses: list[SmallResponse] = []
 
 
-@app.post("/{username}/create_specific_goal")
-def create_specific_goal(goaljson: BigGoal, username: str, response: Response, db: Session = Depends(get_db)):
-    user = crud.get_user_by_username(db=db, username=username)
-    if not user:
-        message = {"message": "user does not exist"}
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return message
+# Refactored
+@app.post("/create_specific_goal")
+def create_specific_goal(goaljson: BigGoal,
+                         response: Response,
+                         db: Session = Depends(get_db),
+                         current_user: models.User = Depends(get_current_user)):
     template = crud.get_template(db=db, template_id=goaljson.template_id)
     if not template:
         message = {"message": "template does not exist"}
@@ -341,7 +284,7 @@ def create_specific_goal(goaljson: BigGoal, username: str, response: Response, d
     goal = crud.create_goal(db=db, goal_name=goaljson.goal_name,
                             check_in_period=goaljson.check_in_period,
                             template_id=goaljson.template_id,
-                            user_id=user.id)
+                            user_id=current_user.id)
 
     for answer in goaljson.responses:
         question = crud.get_question(db=db, question_id=answer.question_id)
@@ -363,30 +306,27 @@ class BigCustomGoal(BaseModel):
     questions_answers: list[list[str, str]] = []
 
 
-@app.post("/{username}/create_custom_goal")
-def create_custom_goal(goaljson: BigCustomGoal, username: str,
-                       response: Response, db: Session = Depends(get_db)):
-    user = crud.get_user_by_username(db=db, username=username)
-    if not user:
-        message = {"message": "user not found"}
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return message
-
-    template = crud.create_template(db=db, name=goaljson.goal_name, is_custom=True,
-                                    creator_id=user.id)
+# Refactored
+@app.post("/create_custom_goal")
+def create_custom_goal(goal_json: BigCustomGoal,
+                       response: Response,
+                       db: Session = Depends(get_db),
+                       current_user: models.User = Depends(get_current_user)):
+    template = crud.create_template(db=db, name=goal_json.goal_name, is_custom=True,
+                                    creator_id=current_user.id)
     if not template:
         message = {"message": "template not created"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
 
-    goal = crud.create_goal(db=db, goal_name=goaljson.goal_name, check_in_period=goaljson.check_in_period,
-                            template_id=template.template_id, user_id=user.id)
+    goal = crud.create_goal(db=db, goal_name=goal_json.goal_name, check_in_period=goal_json.check_in_period,
+                            template_id=template.template_id, user_id=current_user.id)
     if not goal:
         message = {"message": "goal not created"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
 
-    for QA in goaljson.questions_answers:
+    for QA in goal_json.questions_answers:
         question = crud.create_question(db=db, text=QA[0], template_id=template.template_id,
                                         response_type=models.response_types(0), next_check_in_period=0)
         answer = crud.create_response(db=db, text=QA[1], question_id=question.question_id,
@@ -397,15 +337,13 @@ def create_custom_goal(goaljson: BigCustomGoal, username: str,
     return message
 
 
-@app.post("/{username}/create_template")
-def create_template(username: str, template: schemas.TemplateCreate,
-                    response: Response, db: Session = Depends(get_db)):
-    user = crud.get_user_by_username(db=db, username=username)
-    if not user:
-        message = {"message": "error: user not found"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
-    creator_id = user.id
+# Refactored
+@app.post("/create_template")
+def create_template(template: schemas.TemplateCreate,
+                    response: Response,
+                    db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_user)):
+    creator_id = current_user.id
     crud.create_template(db=db, name=template.name, is_custom=template.is_custom,
                          creator_id=creator_id)
     message = {"message": "template successfully created!"}
@@ -419,15 +357,18 @@ class GoalInfo(BaseModel):
     next_check_in: date
 
 
-@app.get("/{username}/{goal_id}/progress")
-def view_goal_progress(username: str, goal_id: int, response: Response, db: Session = Depends(get_db)):
-    user = crud.get_user_by_username(db=db, username=username)
+# Refactored
+@app.get("/progress/{goal_id}")
+def view_goal_progress(goal_id: int,
+                       response: Response,
+                       db: Session = Depends(get_db),
+                       current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=goal_id)
     if not goal:
         message = {"message": "error: goal not found"}
         response.status_code = status.HTTP_404_NOT_FOUND
         return message
-    if goal.creator_id != user.id:
+    if goal.creator_id != current_user.id:
         message = {"message": "not your goal"}
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
@@ -441,7 +382,7 @@ def view_goal_progress(username: str, goal_id: int, response: Response, db: Sess
     return message
 
 
-@app.get("/{username}/templates", response_model=list[schemas.Template])
+@app.get("/templates", response_model=list[schemas.Template])
 def view_premade_templates(db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
     return crud.get_premade_templates(db=db, skip=skip, limit=limit)
 
@@ -452,14 +393,21 @@ class PastWriting(BaseModel):
     check_in_number: int
 
 
-@app.get("/{username}/{goal_id}/responses")
-def view_responses(goal_id: int, response: Response, db: Session = Depends(get_db)):
+# Refactored
+@app.get("/responses/{goal_id}")
+def view_responses(goal_id: int,
+                   response: Response,
+                   db: Session = Depends(get_db),
+                   current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=goal_id)
     if not goal:
         message = {"message": "error: goal not found"}
         response.status_code = status.HTTP_404_NOT_FOUND
         return message
-
+    if goal.creator_id != current_user.id:
+        message = {"message": "not your goal"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
     writings = []
     answers = crud.get_responses_by_goal(db=db, goal_id=goal_id)
     for answer in answers:
@@ -473,12 +421,19 @@ def view_responses(goal_id: int, response: Response, db: Session = Depends(get_d
     return writings
 
 
-@app.post("/{username}/create_response")
-def create_response(resp: schemas.ResponseCreate, response: Response,
-                    db: Session = Depends(get_db)):
+# Refactored
+@app.post("/create_response")
+def create_response(resp: schemas.ResponseCreate,
+                    response: Response,
+                    db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=resp.goal_id)
     if not goal:
         message = {"message": "error: goal not found"}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return message
+    if goal.creator_id != current_user.id:
+        message = {"message": "not your goal"}
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
     crud.create_response(db=db, response=resp)
@@ -486,15 +441,18 @@ def create_response(resp: schemas.ResponseCreate, response: Response,
     return message
 
 
-@app.put("/{username}/{goal_id}/achieved_goal")
-def achieved_goal(username: str, goal_id: int, response: Response, db: Session = Depends(get_db)):
-    user = crud.get_user_by_username(db=db, username=username)
+# Refactored
+@app.put("/achieved_goal/{goal_id}")
+def achieved_goal(goal_id: int,
+                  response: Response,
+                  db: Session = Depends(get_db),
+                  current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=goal_id)
     if not goal:
         message = {"message": "error: goal not found"}
         response.status_code = status.HTTP_404_NOT_FOUND
         return message
-    if goal.creator_id != user.id:
+    if goal.creator_id != current_user.id:
         message = {"message": "not your goal"}
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
@@ -507,15 +465,19 @@ def achieved_goal(username: str, goal_id: int, response: Response, db: Session =
     return message
 
 
-@app.delete("/{username}/{goal_id}/delete_goal")
-def delete_goal(username: str, goal_id: int, response: Response, db: Session = Depends(get_db)):
-    user = crud.get_user_by_username(db=db, username=username)
+# Refactored
+@app.delete("/delete_goal/{goal_id}/")
+def delete_goal(username: str,
+                goal_id: int,
+                response: Response,
+                db: Session = Depends(get_db),
+                current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=goal_id)
     if not goal:
         message = {"message": "error: goal not found"}
         response.status_code = status.HTTP_404_NOT_FOUND
         return message
-    if goal.creator_id != user.id:
+    if goal.creator_id != current_user.id:
         message = {"message": "not your goal"}
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
@@ -532,16 +494,19 @@ class CheckInPeriod(BaseModel):
     new_check_in: int
 
 
-@app.put("/{username}/{goal_id}/edit_check_in_period")
-def edit_check_in_period(username: str, goal_id: int, check_in_period: CheckInPeriod,
-                         response: Response, db: Session = Depends(get_db)):
-    user = crud.get_user_by_username(db=db, username=username)
+# Refactored
+@app.put("/edit_check_in_period/{goal_id}")
+def edit_check_in_period(goal_id: int,
+                         check_in_period: CheckInPeriod,
+                         response: Response,
+                         db: Session = Depends(get_db),
+                         current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=goal_id)
     if not goal:
         message = {"message": "error: goal not found"}
         response.status_code = status.HTTP_404_NOT_FOUND
         return message
-    if goal.creator_id != user.id:
+    if goal.creator_id != current_user.id:
         message = {"message": "not your goal"}
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
@@ -553,8 +518,15 @@ def edit_check_in_period(username: str, goal_id: int, check_in_period: CheckInPe
     response.status_code = status.HTTP_200_OK
     return message
 
+
 # test route for login system
 
 @app.get("/users/me/")
-async def read_users_me(current_user: models.User = Depends(get_current_user)):
+async def read_users_me(
+        current_user: models.User = Depends(get_current_user)):
     return {"username": current_user.username}
+
+
+@app.get("/users/me/email")
+async def read_users_me(current_user: models.User = Depends(get_current_user)):
+    return {"email": current_user.email}
