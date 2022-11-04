@@ -94,6 +94,10 @@ def generate_list_email_data():
 def sendCheckin():
     email_s = generate_list_email_data()
     #print("Sendcheckin", email_s)
+    # if there are checkin emails to send 
+    if not email_s:
+        return
+        
     for email in email_s:
         sendmail(createMessage(email))
 
