@@ -10,7 +10,6 @@ load_dotenv(dotenv_path=env_path)
 
 
 def sendmail(message):
-
     gmail_user = os.getenv("EMAILID")
 
     gmail_password = os.getenv("PASSWORD")

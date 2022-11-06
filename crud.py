@@ -38,7 +38,7 @@ def create_post(db: Session, title: str, content: str, post_author: int):
     return db_post
 
 def create_comment(db: Session, content:str, post_id: int, comment_author: int):
-    db_comment = models.Comment(content=content, timestamp=date.now(), post_id=post_id, comment_author=comment_author)
+    db_comment = models.Comment(content=content, timestamp=datetime.now(), post_id=post_id, comment_author=comment_author)
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
@@ -126,7 +126,7 @@ def get_template(db: Session, template_id: int):
     return db.query(models.Template).filter(models.Template.template_id == template_id).first()
     
 def get_premade_templates(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models  .Template).filter(models.Template.is_custom == False).offset(skip).limit(limit).all()       
+    return db.query(models.Template).filter(models.Template.is_custom == False).offset(skip).limit(limit).all()       
 
 ### GET COMMENTS
 
@@ -147,8 +147,12 @@ def get_posts_by_author(db: Session, post_author: int):
 def get_post_by_id(db: Session, post_id: int):
     return db.query(models.Post).filter(models.Post.post_id == post_id).first()
 
-def get_posts_after_timestamp(db: Session, timestamp: date):
+def get_posts_after_timestamp(db: Session, timestamp: datetime):
     return db.query(models.Post).filter(models.Post.timestamp > timestamp).all()
+
+def get_feed(db: Session, skip: int=0, limit: int=100):
+    return db.query(models.Post).order_by(models.Post.timestamp.desc()) \
+        .offset(skip).limit(limit).all()
 
 ### GET QUESTIONS
 
@@ -236,8 +240,8 @@ def toggle_goal_paused(db: Session, goal_id: int):
     if goal:
         if goal.is_paused == True:
             goal.is_paused = False
-            update_can_check_in(db=db)
             db.commit()
+            update_can_check_in(db=db)
             return "Goal Unpaused"
         else:
             goal.is_paused = True

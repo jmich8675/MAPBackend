@@ -1,6 +1,3 @@
-from email import header
-import re
-from urllib import request
 from fastapi import FastAPI, Response, status, Request
 from pydantic import BaseModel
 from starlette.responses import RedirectResponse, JSONResponse
@@ -20,7 +17,9 @@ from database import get_database
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
 import crud, models, schemas
-from database import SessionLocal, engine
+from database import engine
+
+models.Base.metadata.create_all(bind=engine)
 
 Base2 = models.Base
 
@@ -41,7 +40,7 @@ class User(BaseModel):
 # JWT STUFF
 SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 
 class Token(BaseModel):
@@ -237,6 +236,20 @@ def verify_username_and_goal(username: str, goal_id: int, response: Response,
         return message
 
 
+def verify_username_and_post(username: str, post_id: int, response: Response,
+                             db: Session):
+    user = crud.get_user_by_username(db=db, username=username)
+    post = crud.get_post_by_id(db=db, post_id=post_id)
+    if not post:
+        message = {"message": "error: post not found"}
+        response.status_code = status.HTTP_404_NOT_FOUND
+        return message
+    if post.post_author != user.id:
+        message = {"message": "not your post"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
+
+
 @app.get("/{username}")
 def home(username: str, db: Session = Depends(get_db)):
     return {"message": crud.get_unachieved_goals(db=db, username=username)}
@@ -365,7 +378,8 @@ def view_goal_progress(username: str, goal_id: int, response: Response, db: Sess
         "start_date": goal.start_date,
         "check_in_period": goal.check_in_period,
         "next_check_in": goal.next_check_in,
-        "is_achieved": goal.is_achieved
+        "is_achieved": goal.is_achieved,
+        "is_paused": goal.is_paused
     }
     return message
 
@@ -551,4 +565,29 @@ def create_post(username: str, postjson: PostInfo, response: Response, db: Sessi
     crud.create_post(db=db, title=postjson.title, content=postjson.content, post_author=user.id)
     message = {"Post Created!"}
     response.status_code = status.HTTP_201_CREATED
+    return message
+
+
+@app.get("/{username}/see_posts", response_model=list[schemas.Post])
+def get_posts(db: Session = Depends(get_db), skip: int = 0, limit: int = 100):
+    return crud.get_feed(db=db, skip=skip, limit=limit)
+
+
+class EditPost(BaseModel):
+    content: str
+
+
+@app.put("/{username}/{post_id}/edit_post")
+def edit_post(username: str, post_id: int, editjson: EditPost,
+              response: Response, db: Session = Depends(get_db)):
+    verify_username_and_post(username=username, post_id=post_id,
+                             response=response, db=db)
+    result = crud.edit_post_content(db=db, post_id=post_id,
+                                    newcontent=editjson.content)
+    if result:
+        message = {"Successfully Edited!"}
+        response.status_code = status.HTTP_200_OK
+    else:
+        message = {"Edit Failed!"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
     return message
