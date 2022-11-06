@@ -198,7 +198,6 @@ class TestForumPost:
                           json=post)
         assert res.status_code == 201
 
-    # NEED PULL
     @pytest.mark.dependency(depends=["TestForumPost::test_create_post"])
     def test_view_post(self, client, login_user):
         user_data = login_user
@@ -208,6 +207,34 @@ class TestForumPost:
                           headers={"Authorization": user_data["access_token"]},
                           json=post)
         assert res.status_code == 201
+
+        res = client.get("/{username}/see_posts?skip=0&limit=100".format(username=user_data["username"]),
+                         headers={"Authorization": user_data["access_token"]})
+        print(res.json())
+        assert res.status_code == 200
+        assert res.json()[0]["title"] == "How do I know if I'M prengan?"
+        assert res.json()[0]["content"] == "how would I know if I prengan and what are the sine's"
+
+    @pytest.mark.dependency(depends=["TestForumPost::test_create_post"])
+    def test_edit_post(self, client, login_user):
+        user_data = login_user
+        post = {"title": "How do I know if I'M prengan?",
+                "content": "how would I know if I prengan and what are the sine's"}
+        res = client.post("/{username}/create_post".format(username=user_data["username"]),
+                          headers={"Authorization": user_data["access_token"]},
+                          json=post)
+        assert res.status_code == 201
+        assert res.json()["message"] == "Post Created!"
+        post_id = res.json()["post_id"]
+        edited_post = {"content": "How would I know if I am pregnant and what are the signs?"}
+        res = client.put("/{username}/{post_id}/edit_post".format(username=user_data["username"], post_id=post_id),
+                         headers={"Authorization": user_data["access_token"]},
+                         json=edited_post)
+
+        res = client.get("/{username}/see_posts?skip=0&limit=100".format(username=user_data["username"]),
+                         headers={"Authorization": user_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()[0]["content"] == "How would I know if I am pregnant and what are the signs?"
 
 
 @pytest.fixture()
@@ -293,6 +320,67 @@ class TestCustomGoal:
                           json=custom_goal)
         assert res.status_code == 401
         assert res.json() == {"message": "User Not logged in"}
+
+
+class TestTemplate:
+    @pytest.mark.dependency()
+    def test_create_template(self, client, login_user):
+        user_data = login_user
+        template = {"name": "Template for Awesome Goal",
+                    "is_custom": True}
+        res = client.post("/{username}/create_template".format(username=user_data["username"]),
+                          headers={"Authorization": user_data["access_token"]},
+                          json=template)
+        assert res.status_code == 200
+        assert res.json()["message"] == "template successfully created!"
+
+    def test_create_template_unauthorized(self, client, login_user):
+        user_data = login_user
+        template = {"name": "Template for Awesome Goal",
+                    "is_custom": True}
+        # Leave out Authorization Header
+        res = client.post("/{username}/create_template".format(username=user_data["username"]),
+                          headers={"Authorization": user_data["access_token"]},
+                          json=template)
+        assert res.status_code == 200
+        assert res.json()["message"] == "template successfully created!"
+
+    @pytest.mark.dependency(depends=["TestTemplate::test_create_template"])
+    def test_view_template(self, client, login_user):
+        # non-custom template
+        user_data = login_user
+        template = {"name": "Template for Awesome Goal",
+                    "is_custom": False}
+        res = client.post("/{username}/create_template".format(username=user_data["username"]),
+                          headers={"Authorization": user_data["access_token"]},
+                          json=template)
+        assert res.status_code == 200
+        assert res.json()["message"] == "template successfully created!"
+        res = client.get("/{username}/templates".format(username=user_data["username"]),
+                          headers={"Authorization": user_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()[0]["name"] == "Template for Awesome Goal"
+
+
+# class TestSpecificGoal:
+#     def test_create_specific_goal(self, client, login_user):
+#         user_data = login_user
+#         # Create Template
+#         template = {"name": "Template for Awesome Goal",
+#                     "is_custom": True}
+#         res = client.post("/{username}/create_template".format(username=user_data["username"]),
+#                           headers={"Authorization": user_data["access_token"]},
+#                           json=template)
+#         assert res.status_code == 200
+#         assert res.json()["message"] == "template successfully created!"
+#         # Create Specific goal
+#         goal = {"goal_name": "Awesome Goal",
+#                     "template_id": res.json()["template_id"],
+#                 "check_in_period": 7}
+#         res = client.post("/{username}/create_specific_goal".format(username=user_data["username"]),
+#                           headers={"Authorization": user_data["access_token"]},
+#                           json=template)
+#         assert res.status_code == 200
 
 
 class TestCheckin:

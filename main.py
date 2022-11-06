@@ -348,9 +348,10 @@ def create_template(username: str, template: schemas.TemplateCreate,
         response.status_code = status.HTTP_403_FORBIDDEN
         return message
     creator_id = user.id
-    crud.create_template(db=db, name=template.name, is_custom=template.is_custom,
-                         creator_id=creator_id)
-    message = {"message": "template successfully created!"}
+    template = crud.create_template(db=db, name=template.name, is_custom=template.is_custom,
+                                    creator_id=creator_id)
+    message = {"message": "template successfully created!",
+               "template_id": template.template_id}
     return message
 
 
@@ -562,8 +563,9 @@ def create_post(username: str, postjson: PostInfo, response: Response, db: Sessi
         message = {"User Not Found"}
         response.status_code = status.HTTP_400_BAD_REQUEST
         return message
-    crud.create_post(db=db, title=postjson.title, content=postjson.content, post_author=user.id)
-    message = {"Post Created!"}
+    post = crud.create_post(db=db, title=postjson.title, content=postjson.content, post_author=user.id)
+    message = {"message": "Post Created!",
+               "post_id": post.post_id}
     response.status_code = status.HTTP_201_CREATED
     return message
 
