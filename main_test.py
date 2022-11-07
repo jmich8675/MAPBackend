@@ -139,37 +139,44 @@ def signup_user2(client):
 
 class TestLogin:
     def test_login_simple(self, client, signup_user):
-        res = client.post("/login", json=signup_user)
+        login_body = "grant_type=&username={username}&password={password}&scope=&client_id=&client_secret=".format(
+            username=signup_user["username"], password=signup_user["password"])
+        res = client.post("/token",
+                          headers={"accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                          data=login_body)
         assert res.status_code == 200
-        assert res.json()["message"] == "User logged in successfully"
-        assert res.json()["username"] == "user"
+        assert res.json()["token_type"] == "bearer"
         assert verify_access_token(res.json()["access_token"], signup_user["username"])
 
     def test_login_incorrect_password(self, client, signup_user):
-        incorrect_user_data = {"username": signup_user["username"], "password": "incorrectPassword"}
-        res = client.post("/login", json=incorrect_user_data)
-        assert res.status_code == 403
-        assert res.json()["message"] == "Incorrect Password"
-        assert 'access_token' not in res.json()
+        login_body = "grant_type=&username={username}&password=incorrect_password&scope=&client_id=&client_secret=".format(
+            username=signup_user["username"])
+        res = client.post("/token",
+                          headers={"accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                          data=login_body)
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Incorrect username or password"
 
     def test_login_not_registered(self, client):
-        user_data = {
-            "username": "user",
-            "password": "secret"
-        }
-        res = client.post("/login", json=user_data)
-        assert res.status_code == 403
-        assert res.json()["message"] == "user with the username does not exist"
+        login_body = "grant_type=&username=user&password=secret&scope=&client_id=&client_secret="
+        res = client.post("/token",
+                          headers={"accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                          data=login_body)
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Incorrect username or password"
         assert 'access_token' not in res.json()
 
 
 @pytest.fixture()
 def login_user(client, signup_user):
     user_data = signup_user
-    res = client.post("/login", json=user_data)
+    login_body = "grant_type=&username={username}&password={password}&scope=&client_id=&client_secret=".format(
+        username=signup_user["username"], password=signup_user["password"])
+    res = client.post("/token",
+                      headers={"accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                      data=login_body)
     assert res.status_code == 200
-    assert res.json()["message"] == "User logged in successfully"
-    assert res.json()["username"] == "user"
+    assert res.json()["token_type"] == "bearer"
     assert verify_access_token(res.json()["access_token"], signup_user["username"])
     user_data["access_token"] = res.json()["access_token"]
     return user_data
@@ -178,11 +185,14 @@ def login_user(client, signup_user):
 @pytest.fixture()
 def login_user2(client, signup_user2):
     user_data = signup_user2
-    res = client.post("/login", json=user_data)
+    login_body = "grant_type=&username={username}&password={password}&scope=&client_id=&client_secret=".format(
+        username=signup_user2["username"], password=signup_user2["password"])
+    res = client.post("/token",
+                      headers={"accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                      data=login_body)
     assert res.status_code == 200
-    assert res.json()["message"] == "User logged in successfully"
-    assert res.json()["username"] == "user2"
-    assert verify_access_token(res.json()["access_token"], user_data["username"])
+    assert res.json()["token_type"] == "bearer"
+    assert verify_access_token(res.json()["access_token"], signup_user2["username"])
     user_data["access_token"] = res.json()["access_token"]
     return user_data
 
@@ -193,8 +203,8 @@ class TestForumPost:
         user_data = login_user
         post = {"title": "How do I know if I'M prengan?",
                 "content": "how would I know if I prengan and what are the sine's"}
-        res = client.post("/{username}/create_post".format(username=user_data["username"]),
-                          headers={"Authorization": user_data["access_token"]},
+        res = client.post("/create_post",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=post)
         assert res.status_code == 201
 
@@ -203,14 +213,13 @@ class TestForumPost:
         user_data = login_user
         post = {"title": "How do I know if I'M prengan?",
                 "content": "how would I know if I prengan and what are the sine's"}
-        res = client.post("/{username}/create_post".format(username=user_data["username"]),
-                          headers={"Authorization": user_data["access_token"]},
+        res = client.post("/create_post",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=post)
         assert res.status_code == 201
 
-        res = client.get("/{username}/see_posts?skip=0&limit=100".format(username=user_data["username"]),
-                         headers={"Authorization": user_data["access_token"]})
-        print(res.json())
+        res = client.get("/see_posts?skip=0&limit=100",
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 200
         assert res.json()[0]["title"] == "How do I know if I'M prengan?"
         assert res.json()[0]["content"] == "how would I know if I prengan and what are the sine's"
@@ -220,19 +229,19 @@ class TestForumPost:
         user_data = login_user
         post = {"title": "How do I know if I'M prengan?",
                 "content": "how would I know if I prengan and what are the sine's"}
-        res = client.post("/{username}/create_post".format(username=user_data["username"]),
-                          headers={"Authorization": user_data["access_token"]},
+        res = client.post("/create_post",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=post)
         assert res.status_code == 201
         assert res.json()["message"] == "Post Created!"
         post_id = res.json()["post_id"]
         edited_post = {"content": "How would I know if I am pregnant and what are the signs?"}
-        res = client.put("/{username}/{post_id}/edit_post".format(username=user_data["username"], post_id=post_id),
-                         headers={"Authorization": user_data["access_token"]},
+        res = client.put("/edit_post/{post_id}".format(post_id=post_id),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]},
                          json=edited_post)
 
-        res = client.get("/{username}/see_posts?skip=0&limit=100".format(username=user_data["username"]),
-                         headers={"Authorization": user_data["access_token"]})
+        res = client.get("/see_posts?skip=0&limit=100",
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 200
         assert res.json()[0]["content"] == "How would I know if I am pregnant and what are the signs?"
 
@@ -248,8 +257,8 @@ def create_custom_goal(client, login_user):
             ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
         ]
     }
-    res = client.post("/{username}/create_custom_goal".format(username=user_data["username"]),
-                      headers={"Authorization": user_data["access_token"]},
+    res = client.post("/create_custom_goal",
+                      headers={"Authorization": "Bearer " + user_data["access_token"]},
                       json=custom_goal)
     assert res.status_code == 201
     assert res.json()["message"] == "custom goal created!"
@@ -269,8 +278,8 @@ class TestCustomGoal:
                 ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
             ]
         }
-        res = client.post("/{username}/create_custom_goal".format(username=user_data["username"]),
-                          headers={"Authorization": user_data["access_token"]},
+        res = client.post("/create_custom_goal",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=custom_goal)
         assert res.status_code == 201
         assert res.json()["message"] == "custom goal created!"
@@ -279,8 +288,8 @@ class TestCustomGoal:
     @pytest.mark.dependency(depends=["TestCustomGoal::test_create_custom_goal"])
     def test_view_custom_goal(self, client, login_user, create_custom_goal):
         user_data = login_user
-        res = client.get("/{username}".format(username=user_data["username"]),
-                         headers={"Authorization": user_data["access_token"]}, )
+        res = client.get("/goals".format(username=user_data["username"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]}, )
         assert res.status_code == 200
         assert res.json() == {'message': [
             {'id': 1, 'is_paused': False, 'check_in_period': 7, 'check_in_num': 0, 'template_id': 1,
@@ -298,8 +307,8 @@ class TestCustomGoal:
                 ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
             ]
         }
-        res = client.post("/{username}/create_custom_goal".format(username=user_data["username"]),
-                          headers={"Authorization": user_data["access_token"]},
+        res = client.post("/create_custom_goal",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=custom_goal)
         # 422 corresponds to invalid pydantic input
         assert res.status_code == 422
@@ -315,11 +324,11 @@ class TestCustomGoal:
             ]
         }
         # do not pass token to test authorization
-        res = client.post("/anotherUser/create_custom_goal".format(username=user_data["username"]),
-                          # headers={"Authorization": user_data["access_token"]},
+        res = client.post("/create_custom_goal".format(username=user_data["username"]),
+                          # headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=custom_goal)
         assert res.status_code == 401
-        assert res.json() == {"message": "User Not logged in"}
+        assert res.json() == {"detail": "Not authenticated"}
 
 
 class TestTemplate:
@@ -328,8 +337,8 @@ class TestTemplate:
         user_data = login_user
         template = {"name": "Template for Awesome Goal",
                     "is_custom": True}
-        res = client.post("/{username}/create_template".format(username=user_data["username"]),
-                          headers={"Authorization": user_data["access_token"]},
+        res = client.post("/create_template",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=template)
         assert res.status_code == 200
         assert res.json()["message"] == "template successfully created!"
@@ -339,11 +348,11 @@ class TestTemplate:
         template = {"name": "Template for Awesome Goal",
                     "is_custom": True}
         # Leave out Authorization Header
-        res = client.post("/{username}/create_template".format(username=user_data["username"]),
-                          headers={"Authorization": user_data["access_token"]},
+        res = client.post("/create_template".format(username=user_data["username"]),
+                          # headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=template)
-        assert res.status_code == 200
-        assert res.json()["message"] == "template successfully created!"
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
 
     @pytest.mark.dependency(depends=["TestTemplate::test_create_template"])
     def test_view_template(self, client, login_user):
@@ -351,13 +360,13 @@ class TestTemplate:
         user_data = login_user
         template = {"name": "Template for Awesome Goal",
                     "is_custom": False}
-        res = client.post("/{username}/create_template".format(username=user_data["username"]),
-                          headers={"Authorization": user_data["access_token"]},
+        res = client.post("/create_template",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=template)
         assert res.status_code == 200
         assert res.json()["message"] == "template successfully created!"
-        res = client.get("/{username}/templates".format(username=user_data["username"]),
-                          headers={"Authorization": user_data["access_token"]})
+        res = client.get("/templates",
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 200
         assert res.json()[0]["name"] == "Template for Awesome Goal"
 
@@ -369,7 +378,7 @@ class TestTemplate:
 #         template = {"name": "Template for Awesome Goal",
 #                     "is_custom": True}
 #         res = client.post("/{username}/create_template".format(username=user_data["username"]),
-#                           headers={"Authorization": user_data["access_token"]},
+#                           headers={"Authorization": "Bearer " + user_data["access_token"]},
 #                           json=template)
 #         assert res.status_code == 200
 #         assert res.json()["message"] == "template successfully created!"
@@ -378,7 +387,7 @@ class TestTemplate:
 #                     "template_id": res.json()["template_id"],
 #                 "check_in_period": 7}
 #         res = client.post("/{username}/create_specific_goal".format(username=user_data["username"]),
-#                           headers={"Authorization": user_data["access_token"]},
+#                           headers={"Authorization": "Bearer " + user_data["access_token"]},
 #                           json=template)
 #         assert res.status_code == 200
 
@@ -388,51 +397,48 @@ class TestCheckin:
         user_data = login_user
         custom_goal_result = create_custom_goal
 
-        res = client.get("/{username}/{goal_id}/list_check_in_questions".format(username=user_data["username"],
-                                                                                goal_id=custom_goal_result["goal_id"]),
-                         headers={"Authorization": user_data["access_token"]})
+        res = client.get("/list_check_in_questions/{goal_id}".format(goal_id=custom_goal_result["goal_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 200
-        print(res.json())
 
 
 class TestPauseGoal:
     @pytest.mark.dependency()
     def test_pause_goal(self, client, login_user, create_custom_goal):
         user_data = login_user
-        res = client.put("/{username}/{goal_id}/togglepause".format(username=user_data["username"],
-                                                                    goal_id=create_custom_goal["goal_id"]),
-                         headers={"Authorization": user_data["access_token"]})
+        res = client.put("/togglepause/{goal_id}".format(goal_id=create_custom_goal["goal_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 200
         assert res.json()["message"] == "Pause Toggled!"
         # get goals to check if pause was successful
-        res = client.get("/{username}".format(username=user_data["username"]),
-                         headers={"Authorization": user_data["access_token"]}, )
+        res = client.get("/goals".format(username=user_data["username"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]}, )
         assert res.status_code == 200
         assert res.json()["message"][0]["is_paused"]
 
     @pytest.mark.dependency(depends=["TestPauseGoal::test_pause_goal"])
     def test_unpause_goal(self, client, login_user, create_custom_goal):
         user_data = login_user
-        res = client.put("/{username}/{goal_id}/togglepause".format(username=user_data["username"],
-                                                                    goal_id=create_custom_goal["goal_id"]),
-                         headers={"Authorization": user_data["access_token"]})
+        res = client.put("/togglepause/{goal_id}".format(username=user_data["username"],
+                                                         goal_id=create_custom_goal["goal_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 200
         assert res.json()["message"] == "Pause Toggled!"
         # Get goals to check if pause was successful
-        res = client.get("/{username}".format(username=user_data["username"]),
-                         headers={"Authorization": user_data["access_token"]}, )
+        res = client.get("/goals".format(username=user_data["username"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]}, )
         assert res.status_code == 200
         # Test if goal has been paused
         assert res.json()["message"][0]["is_paused"]
         # Send same request to unpause the goal
-        res = client.put("/{username}/{goal_id}/togglepause".format(username=user_data["username"],
-                                                                    goal_id=create_custom_goal["goal_id"]),
-                         headers={"Authorization": user_data["access_token"]})
+        res = client.put("/togglepause/{goal_id}".format(username=user_data["username"],
+                                                         goal_id=create_custom_goal["goal_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 200
         assert res.json()["message"] == "Pause Toggled!"
         # Get goals to check if unpause was successful
-        res = client.get("/{username}".format(username=user_data["username"]),
-                         headers={"Authorization": user_data["access_token"]}, )
+        res = client.get("/goals".format(username=user_data["username"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]}, )
         assert res.status_code == 200
         # Test if goal has been paused
         assert not res.json()["message"][0]["is_paused"]
@@ -440,33 +446,31 @@ class TestPauseGoal:
     def test_pause_goal_unauthorized(self, client, login_user, create_custom_goal):
         user_data = login_user
         # leave out Authorization header to test if path is guarded
-        res = client.put("/{username}/{goal_id}/togglepause".format(username=user_data["username"],
-                                                                    goal_id=create_custom_goal["goal_id"]))
+        res = client.put("/togglepause/{goal_id}".format(goal_id=create_custom_goal["goal_id"]))
         assert res.status_code == 401
-        assert res.json() == {"message": "User Not logged in"}
+        assert res.json() == {"detail": "Not authenticated"}
 
 
 class TestAchieveGoal:
     @pytest.mark.dependency()
     def test_mark_goal_achieved(self, client, login_user, create_custom_goal):
         user_data = login_user
-        res = client.put("/{username}/{goal_id}/achieved_goal".format(username=user_data["username"],
-                                                                      goal_id=create_custom_goal["goal_id"]),
-                         headers={"Authorization": user_data["access_token"]})
+        res = client.put("/achieved_goal/{goal_id}".format(username=user_data["username"],
+                                                           goal_id=create_custom_goal["goal_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 200
         assert res.json()["message"] == "goal achieved! congrats!"
         # get goals to check if pause was successful
-        res = client.get("/{username}/achieved_goals".format(username=user_data["username"]),
-                         headers={"Authorization": user_data["access_token"]})
+        res = client.get("/achieved_goals".format(username=user_data["username"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 200
         assert res.json()[0]["is_achieved"]
 
     def test_mark_goal_achieved_invalid_goal(self, client, login_user, create_custom_goal):
         user_data = login_user
         # Use invalid goal_id
-        res = client.put("/{username}/{goal_id}/achieved_goal".format(username=user_data["username"],
-                                                                      goal_id=69420),
-                         headers={"Authorization": user_data["access_token"]})
+        res = client.put("/achieved_goal/{goal_id}".format(goal_id=69420),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 404
         assert res.json()["message"] == "error: goal not found"
 
@@ -476,19 +480,17 @@ class TestAchieveGoal:
         user_data = login_user
         user_data2 = login_user2
         # Attempt to access 'user's goal from 'user2'
-        res = client.put("/{username}/{goal_id}/achieved_goal".format(username=user_data["username"],
-                                                                      goal_id=create_custom_goal["goal_id"]),
-                         headers={"Authorization": user_data2["access_token"]})
-        assert res.status_code == 401
-        assert res.json()["message"] == "User Not logged in"
+        res = client.put("/achieved_goal/{goal_id}".format(goal_id=create_custom_goal["goal_id"]),
+                         headers={"Authorization": "Bearer " + user_data2["access_token"]})
+        assert res.status_code == 403
+        assert res.json()["message"] == "not your goal"
 
     def test_mark_goal_achieved_unauthorized(self, client, login_user, create_custom_goal):
         user_data = login_user
         # Leave out Authorization header
-        res = client.put("/{username}/{goal_id}/achieved_goal".format(username=user_data["username"],
-                                                                      goal_id=create_custom_goal["goal_id"]))
+        res = client.put("/achieved_goal/{goal_id}".format(goal_id=create_custom_goal["goal_id"]))
         assert res.status_code == 401
-        assert res.json()["message"] == "User Not logged in"
+        assert res.json()["detail"] == "Not authenticated"
 
 # @pytest.fixture()
 # def create_question(session, create_custom_goal):
