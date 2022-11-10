@@ -241,15 +241,27 @@ def toggle_goal_paused(db: Session, goal_id: int):
         if goal.is_paused == True:
             goal.is_paused = False
             db.commit()
+            db.refresh(goal)
             update_can_check_in(db=db)
             return "Goal Unpaused"
         else:
             goal.is_paused = True
             goal.can_check_in = False
             db.commit()
+            db.refresh(goal)
             return "Goal Paused"
     else:
         return "Goal not found"                  
+
+def change_verified_status(db: Session, user_id: int, is_verified: bool):
+    user = get_user(db, user_id)
+    if user:
+        user.is_verified = is_verified
+        db.commit()
+        db.refresh(user)
+        return "Account status updated"
+    else:
+        return "User not found"
 
 def after_check_in_update(goal_id: int, db: Session):
     goal = get_goal(db=db, goal_id=goal_id)

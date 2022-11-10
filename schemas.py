@@ -87,6 +87,7 @@ class User(UserBase):
     id: int
     goals: list[Goal] = []
     templates: list[Template] = []
+    is_verified: bool
 
     class Config:
         orm_mode = True
@@ -117,6 +118,7 @@ class Post(PostBase):
     post_id: int
     post_author: int
     timestamp: datetime
+    recent_comment_timestamp: datetime
     poster: User
     comments: list[Comment] = []
 

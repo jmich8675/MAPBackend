@@ -15,6 +15,7 @@ class User(Base):
     pw_hash = Column(String)
     pw_salt = Column(String)
     email = Column(String, unique=True, index=True)
+    is_verified = Column(Boolean, default=False, index=True)
 
     goals = relationship("Goal", back_populates="creator")
     myposts = relationship("Post", back_populates="poster")
@@ -83,6 +84,7 @@ class Post(Base):
     content = Column(String, index=True)
     post_author = Column(Integer, ForeignKey("users.id"))
     timestamp = Column(DateTime, index=True)
+    recent_comment_timestamp = Column(DateTime, index=True)
 
     poster = relationship("User", back_populates="myposts")
     comments = relationship("Comment", backref="posts", cascade = "all, delete-orphan", passive_deletes=True)
