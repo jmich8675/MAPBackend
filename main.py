@@ -324,6 +324,7 @@ class BigCustomGoal(BaseModel):
 def create_custom_goal(goaljson: BigCustomGoal,
                        response: Response, db: Session = Depends(get_db),
                        current_user: models.User = Depends(get_current_user)):
+    print(goaljson.questions_answers)
     if not current_user:
         message = {"message": "user not found"}
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -342,7 +343,7 @@ def create_custom_goal(goaljson: BigCustomGoal,
         message = {"message": "goal not created"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
-
+    
     for QA in goaljson.questions_answers:
         question = crud.create_question(db=db, text=QA[0], template_id=template.template_id,
                                         response_type=models.response_types(0), next_check_in_period=0)
@@ -616,4 +617,23 @@ def edit_post(post_id: int, editjson: EditPost,
     else:
         message = {"Edit Failed!"}
         response.status_code = status.HTTP_400_BAD_REQUEST
+    return message
+
+class Commment(BaseModel):
+    text: str
+
+@app.post("/leave_comment/{post_id}")
+def leave_comment(post_id: int, comment: Commment, response: Response, db: Session = Depends(get_db),
+                  current_user: models.User = Depends(get_current_user)):
+    if not current_user:
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"user is not real"}
+    post = crud.get_post_by_id(db=db, post_id=post_id)
+    if not post:
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return {"post not found"}
+    comment = crud.create_comment(db=db, content=comment.text, post_id=post_id,
+                        comment_author=current_user.id)
+    message = {"comment created!"}
+    response.status_code = status.HTTP_200_OK
     return message
