@@ -77,15 +77,12 @@ def create_template(db: Session, name: str, is_custom: bool, creator_id: int):
     db.refresh(db_template)
     return db_template
 
-def add_friend(db: Session, self_id: int, friend_id: int):
-    self = get_user(db, self_id)
-    friend = get_user(db, friend_id)
-    if friend not in self.friends:
-        self.friends.append(friend)
-        friend.friends.append(self)
-        db.commit()
-        db.refresh(self)
-        db.refresh(friend)
+def make_friends(db: Session, user_id1: int, user_id2: int):
+    db_friends = models.Friends(user1=user_id1, user2=user_id2)
+    db.add(db_friends)
+    db.commit()
+    db.refresh(db_friends)
+    return db_friends
 
 
 ###############################################################################
@@ -107,6 +104,15 @@ def get_user_by_username(db: Session, username: str):
 
 def get_users(db: Session, skip: int = 0, limit: int = 100):
     return db.query(models.User).offset(skip).limit(limit).all()
+
+def get_user_profile(db: Session, user_id: int):
+    return db.query(models.User.username, models.User.email, models.User.id) \
+    .filter(models.User.id==user_id).first()
+
+def get_public_goals(db: Session, user_id: int):
+    return db.query(models.Goal) \
+        .filter(models.Goal.creator_id==user_id) \
+        .filter(models.Goal.is_public==True).all()
 
 ### GET GOALS
 
@@ -188,20 +194,17 @@ def get_responses_by_question(db: Session, question_id: int):
 
 ### GET FRIENDS
 
-    ### returns the list object 'friends' from a User object. Pending and nonpending
-def get_user_friends_all(db: Session, user_id: int):
-    user = get_user(user_id)
-    return user.friends
-
-    ### returns list object of a user's accepted friends
-def get_user_friends_accepted(db: Session, user_id: int):
-    return db.query(models.friendship).filter(and_(models.friendship.pending==False, models.friendship.user_id==user_id)).all()
-
-    ### returns list object of a user's currently pending friend requests
-def get_user_friends_pending(db: Session, user_id: int):
-    return db.query(models.friendship).filter(and_(models.friendship.pending==True, models.friendship.user_id==user_id)).all()
-
-
+def get_users_friends(db: Session, user_id: int):
+    friends = []
+    for friend in db.query(models.Friends).filter(models.Friends.user1==user_id) \
+            .filter(models.Friends.pending == False).all():
+        friends.append(friend.user2)
+    for friend in db.query(models.Friends).filter(models.Friends.user2==user_id) \
+            .filter(models.Friends.pending == False).all():
+        friends.append(friend.user1)
+    for i in range(len(friends)):
+        friends[i] = get_user_profile(db=db, user_id=friends[i])
+    return friends
 
 ###############################################################################
 
@@ -302,7 +305,23 @@ def toggle_goal_paused(db: Session, goal_id: int):
             db.refresh(goal)
             return "Goal Paused"
     else:
-        return "Goal not found"                  
+        return "Goal not found"    
+
+def toggle_public_private(db: Session, goal_id: int):
+    goal = get_goal(db, goal_id)
+    if goal:
+        if goal.is_public == True:
+            goal.is_public = False
+            db.commit()
+            db.refresh(goal)
+            return "Goal now private!"
+        else:
+            goal.is_public = True  
+            db.commit()
+            db.refresh(goal)
+            return "Goal now public!"
+    else:
+        return "Goal not found"        
 
 def change_verified_status(db: Session, user_id: int, is_verified: bool):
     user = get_user(db, user_id)
