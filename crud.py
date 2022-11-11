@@ -77,7 +77,7 @@ def create_template(db: Session, name: str, is_custom: bool, creator_id: int):
     db.refresh(db_template)
     return db_template
 
-def make_friends(db: Session, user_id1: int, user_id2: int):
+def create_friend_request(db: Session, user_id1: int, user_id2: int):
     db_friends = models.Friends(user1=user_id1, user2=user_id2)
     db.add(db_friends)
     db.commit()
