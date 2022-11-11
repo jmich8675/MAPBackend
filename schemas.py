@@ -92,6 +92,17 @@ class User(UserBase):
     class Config:
         orm_mode = True
 
+class FriendBase(BaseModel):
+    user1_id: int
+    user2_id: int
+
+class FriendCreate(FriendBase):
+    pass
+
+class Friend(FriendBase):
+    class Config:
+        orm_mode = True
+
 class CommentBase(BaseModel):
     content: str
 
