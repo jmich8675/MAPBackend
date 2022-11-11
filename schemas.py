@@ -88,7 +88,23 @@ class User(UserBase):
     goals: list[Goal] = []
     templates: list[Template] = []
     is_verified: bool
+    
+    ###friends: list[User] = []
 
+    class Config:
+        orm_mode = True
+
+class friendshipBase(BaseModel):
+    user_id: int
+    friend_id: int
+    
+
+class friendshipCreate(friendshipBase):
+    pass
+
+class friendship(friendshipBase):
+    pending: bool
+    
     class Config:
         orm_mode = True
 
