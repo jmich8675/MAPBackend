@@ -42,6 +42,7 @@ def create_comment(db: Session, content:str, post_id: int, comment_author: int):
     db.add(db_comment)
     db.commit()
     db.refresh(db_comment)
+    update_recent_timestamp(db, post_id, db_comment.timestamp)
     return db_comment
 
 def create_user(db: Session, user: schemas.UserCreate):
@@ -182,6 +183,15 @@ def get_responses_by_question(db: Session, question_id: int):
                         ### CR(U)D UPDATE METHODS ###
 
 ###############################################################################
+
+def update_recent_timestamp (db: Session, post_id: int, timestamp: datetime):
+    post = get_post_by_id(db, post_id)
+    if post:
+        post.recent_comment_timestamp = timestamp
+        db.commit()
+        db.refresh(post)
+        return True ###post found, most recent comment timestamp updated
+    return False ###post not found, most recent comment timestamp not updated
 
 def edit_comment(db: Session, comment_id, newcontent: str):
     comment = get_comment_by_id(db, comment_id)
