@@ -132,7 +132,7 @@ class Post(PostBase):
     post_id: int
     post_author: int
     timestamp: datetime
-    recent_comment_timestamp: datetime
+    recent_comment_timestamp: datetime | None
     poster: User
     comments: list[Comment] = []
 

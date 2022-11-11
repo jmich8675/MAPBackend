@@ -228,7 +228,7 @@ def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2Passw
         #status_code=status.HTTP_307_TEMPORARY_REDIRECT
         #detail="Email not verified. Please verify your account in your email!"
         #return detail
-    #TODO: uncomment to verify email, potential
+    #TODO: uncomment to verify email,
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
@@ -602,9 +602,7 @@ def create_post(postjson: PostInfo, response: Response, db: Session = Depends(ge
 @app.get("/see_posts", response_model=list[schemas.Post])  # response_model=list[schemas.Post]
 def get_posts(db: Session = Depends(get_db), skip: int = 0, limit: int = 100,
               current_user: models.User = Depends(get_current_user)):
-    posts = crud.get_feed(db=db, skip=skip, limit=limit)
-    print(posts)
-    return posts
+    return crud.get_feed(db=db, skip=skip, limit=limit)
 
 
 class EditPost(BaseModel):
