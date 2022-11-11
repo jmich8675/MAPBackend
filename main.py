@@ -640,17 +640,29 @@ def leave_comment(post_id: int, comment: Commment, response: Response, db: Sessi
     response.status_code = status.HTTP_200_OK
     return message
 
+@app.get("/comments/{post_id}")
+def see_comments(post_id: int, db: Session = Depends(get_db),
+                 current_user: models.User = Depends(get_current_user)):
+    return crud.get_comments_by_post(db=db, post_id=post_id)
 
-@app.post("/make_friends")
-def make_friends(user_id1: int, user_id2: int, db: Session = Depends(get_db)):
-    user1 = crud.get_user(db=db, user_id=user_id1)
-    user2 = crud.get_user(db=db, user_id=user_id2)
+class Peers(BaseModel):
+    user_id1: int
+    user_id2: int
+
+@app.post("/create_friend_request")
+def create_friend_request(peers: Peers, db: Session = Depends(get_db)):
+    user1 = crud.get_user(db=db, user_id=peers.user_id1)
+    user2 = crud.get_user(db=db, user_id=peers.user_id2)
     if not user1 or not user2:
         message = {"user(s) not found!"}
         return message
-    crud.make_friends(db=db, user_id1=user_id1, user_id2=user_id2)
+    crud.make_friends(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
     message = {"friendship created"}
     return message
+
+@app.post("/accept_friend_request")
+def accept_friend_request(peers: Peers, db: Session = Depends(get_db)):
+    return
 
 @app.get("/friends")
 def my_friends(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
