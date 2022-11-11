@@ -224,6 +224,11 @@ def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2Passw
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
+    #if not user.is_verified:
+        #status_code=status.HTTP_307_TEMPORARY_REDIRECT
+        #detail="Email not verified. Please verify your account in your email!"
+        #return detail
+    #TODO: uncomment to verify email, potential
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
         data={"sub": user.username}, expires_delta=access_token_expires
@@ -594,10 +599,12 @@ def create_post(postjson: PostInfo, response: Response, db: Session = Depends(ge
     return message
 
 
-@app.get("/see_posts")  # response_model=list[schemas.Post]
+@app.get("/see_posts", response_model=list[schemas.Post])  # response_model=list[schemas.Post]
 def get_posts(db: Session = Depends(get_db), skip: int = 0, limit: int = 100,
               current_user: models.User = Depends(get_current_user)):
-    return crud.get_feed(db=db, skip=skip, limit=limit)
+    posts = crud.get_feed(db=db, skip=skip, limit=limit)
+    print(posts)
+    return posts
 
 
 class EditPost(BaseModel):
@@ -649,20 +656,41 @@ class Peers(BaseModel):
     user_id1: int
     user_id2: int
 
-@app.post("/create_friend_request")
-def create_friend_request(peers: Peers, db: Session = Depends(get_db)):
-    user1 = crud.get_user(db=db, user_id=peers.user_id1)
-    user2 = crud.get_user(db=db, user_id=peers.user_id2)
+@app.post("/send_friend_request/{user_id}")
+def send_friend_request(user_id: int, db: Session = Depends(get_db),
+                        current_user: models.User = Depends(get_current_user)):
+    user1 = current_user
+    user2 = crud.get_user(db=db, user_id=user_id)
     if not user1 or not user2:
         message = {"user(s) not found!"}
         return message
-    crud.make_friends(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
+    crud.make_friends(db=db, user_id1=current_user.id, user_id2=user_id)
     message = {"friendship created"}
     return message
 
 @app.post("/accept_friend_request")
 def accept_friend_request(peers: Peers, db: Session = Depends(get_db)):
-    return
+    friendship = crud.get_friendship(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
+    if not friendship:
+        return {"friendship does not exist"}
+    if not friendship.pending:
+        message = {"something is wrong..."}
+        return message
+    crud.accept_friend_request(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
+    message = {"friendship accepted"}
+    return message
+
+@app.post("/deny_friend_request")
+def deny_friend_requesst(peers: Peers, db: Session = Depends(get_db)):
+    friendship = crud.get_friendship(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
+    if not friendship:
+        return {"friendship does not exist"}
+    if not friendship.pending:
+        message = {"hmmmmm......"}
+        return message
+    crud.deny_friend_request(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
+    message = {"friendship denied...."}
+    return message
 
 @app.get("/friends")
 def my_friends(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
