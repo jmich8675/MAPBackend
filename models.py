@@ -29,7 +29,14 @@ class User(Base):
 
     goals = relationship("Goal", back_populates="creator")
     myposts = relationship("Post", back_populates="poster")
-    #templates = relationship("Template", back_populates="creator")
+    #templates = relationsip("Template", back_populates="creator")
+
+class Friends(Base):
+    __tablename__ = "friends"
+
+    user1 = Column(Integer, ForeignKey("users.id"), index=True, primary_key=True)
+    user2 = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    pending = Column(Boolean, default=True)
 
 class Goal(Base):
     __tablename__ = "goals"

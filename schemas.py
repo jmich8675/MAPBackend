@@ -94,17 +94,15 @@ class User(UserBase):
     class Config:
         orm_mode = True
 
-class friendshipBase(BaseModel):
-    user_id: int
-    friend_id: int
-    
+class FriendBase(BaseModel):
+    user1_id: int
+    user2_id: int
 
-class friendshipCreate(friendshipBase):
+class FriendCreate(FriendBase):
     pass
 
-class friendship(friendshipBase):
+class Friend(FriendBase):
     pending: bool
-    
     class Config:
         orm_mode = True
 

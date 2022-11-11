@@ -634,6 +634,33 @@ def leave_comment(post_id: int, comment: Commment, response: Response, db: Sessi
         return {"post not found"}
     comment = crud.create_comment(db=db, content=comment.text, post_id=post_id,
                         comment_author=current_user.id)
+    
+    #TODO: send notification 
     message = {"comment created!"}
     response.status_code = status.HTTP_200_OK
     return message
+
+@app.post("/make_friends")
+def make_friends(user_id1: int, user_id2: int, db: Session = Depends(get_db)):
+    user1 = crud.get_user(db=db, user_id=user_id1)
+    user2 = crud.get_user(db=db, user_id=user_id2)
+    if not user1 or not user2:
+        message = {"user(s) not found!"}
+        return message
+    crud.make_friends(db=db, user_id1=user_id1, user_id2=user_id2)
+    message = {"friendship created"}
+    return message
+
+@app.get("/friends")
+def my_friends(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
+    return crud.get_users_friends(db=db, user_id=current_user.id)
+
+@app.get("/public_goals/{user_id}")
+def public_goals(user_id: int, db: Session = Depends(get_db)):
+    return crud.get_public_goals(db=db, user_id=user_id)
+
+@app.get("/togglepublic/{goal_id}")
+def togglepublic(goal_id: int, response: Response, db: Session = Depends(get_db),
+                 current_user: models.User = Depends(get_current_user)):
+    verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
+    return crud.toggle_public_private(db=db, goal_id=goal_id)
