@@ -7,13 +7,6 @@ class response_types(enum.Enum):
     TYPE = 0
     SELECT = 1
 
-
-friendship = Table('friends', Base.metadata,
-                    Column('user_id', Integer, ForeignKey('users.id'), index=True),
-                    Column('friend_id', Integer, ForeignKey('users.id')),
-                    Column('pending', Boolean, default=True, index=True),
-                    UniqueConstraint('user_id', 'friend_id', name='unique_friendships'))
-
 class User(Base):
     __tablename__ = "users"
 
@@ -23,9 +16,6 @@ class User(Base):
     pw_salt = Column(String)
     email = Column(String, unique=True, index=True)
     is_verified = Column(Boolean, default=False, index=True)
-
-    friends = relationship('User', secondary=friendship, primaryjoin=id==friendship.c.user_id,
-                            secondaryjoin=id==friendship.c.friend_id)
 
     goals = relationship("Goal", back_populates="creator")
     myposts = relationship("Post", back_populates="poster")

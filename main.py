@@ -640,6 +640,12 @@ def leave_comment(post_id: int, comment: Commment, response: Response, db: Sessi
     response.status_code = status.HTTP_200_OK
     return message
 
+@app.get("/comments/{post_id}")
+def see_comments(post_id: int, db: Session = Depends(get_db),
+                 current_user: models.User = Depends(get_current_user)):
+    return crud.get_comments_by_post(db=db, post_id=post_id)
+
+
 @app.post("/make_friends")
 def make_friends(user_id1: int, user_id2: int, db: Session = Depends(get_db)):
     user1 = crud.get_user(db=db, user_id=user_id1)
