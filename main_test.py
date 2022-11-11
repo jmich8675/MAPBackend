@@ -496,3 +496,29 @@ class TestAchieveGoal:
 # def create_question(session, create_custom_goal):
 #     crud.create_question(session, "How are your goals progressing", create_custom_goal["template_id"],
 #                          response_types.TYPE, 0)
+
+class TestComment:
+    def test_leave_comment(self, client, login_user):
+        user_data = login_user
+        # create forum post
+        post = {"title": "How do I know if I'M prengan?",
+                "content": "how would I know if I prengan and what are the sine's"}
+        res = client.post("/create_post",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=post)
+        assert res.status_code == 201
+        post_id = res.json()["post_id"]
+        # leave comment
+        comment = {"text": "u prengan if pregananant"}
+        res = client.post("/leave_comment/{post_id}".format(post_id=post_id),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=comment)
+        assert res.status_code == 200
+        assert res.json()["message"] == "comment created!"
+
+    def test_view_comment(self, client, login_user):
+        assert False
+    def test_leave_comment_nonexistent_post(self, client, login_user):
+        assert False
+    def test_leave_comment_unauthorized(self, client, login_user):
+        assert False
