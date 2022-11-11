@@ -343,7 +343,7 @@ def create_custom_goal(goaljson: BigCustomGoal,
         message = {"message": "goal not created"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
-    
+
     for QA in goaljson.questions_answers:
         question = crud.create_question(db=db, text=QA[0], template_id=template.template_id,
                                         response_type=models.response_types(0), next_check_in_period=0)
@@ -594,7 +594,7 @@ def create_post(postjson: PostInfo, response: Response, db: Session = Depends(ge
     return message
 
 
-@app.get("/see_posts", response_model=list[schemas.Post])
+@app.get("/see_posts")  # response_model=list[schemas.Post]
 def get_posts(db: Session = Depends(get_db), skip: int = 0, limit: int = 100,
               current_user: models.User = Depends(get_current_user)):
     return crud.get_feed(db=db, skip=skip, limit=limit)
@@ -619,8 +619,10 @@ def edit_post(post_id: int, editjson: EditPost,
         response.status_code = status.HTTP_400_BAD_REQUEST
     return message
 
+
 class Commment(BaseModel):
     text: str
+
 
 @app.post("/leave_comment/{post_id}")
 def leave_comment(post_id: int, comment: Commment, response: Response, db: Session = Depends(get_db),
@@ -632,11 +634,9 @@ def leave_comment(post_id: int, comment: Commment, response: Response, db: Sessi
     if not post:
         response.status_code = status.HTTP_400_BAD_REQUEST
         return {"post not found"}
-    comment = crud.create_comment(db=db, content=comment.text, post_id=post_id,
-                        comment_author=current_user.id)
-    
-    #TODO: send notification 
-    message = {"comment created!"}
+    comment = crud.create_comment(db=db, content=comment.text, post_id=post_id,comment_author=current_user.id)
+    message = {"message": "comment created!",
+               "comment_id": comment.comment_id}
     response.status_code = status.HTTP_200_OK
     return message
 
