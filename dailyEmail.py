@@ -1,5 +1,5 @@
 # Run this at specific time everyday
 
-from emailbuilder import sendCheckin
+from email_sender import sendCheckin
 
 sendCheckin()

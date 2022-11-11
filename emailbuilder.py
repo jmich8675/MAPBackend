@@ -1,7 +1,6 @@
 from email.message import EmailMessage
 from email.utils import formataddr
-from sendemail import sendmail
-from database import get_db
+from database import get_database
 from models import User, Goal, Question, Response
 from crud import get_user, get_checkin_goals, get_responses_by_goal, get_question
 from datetime import date
@@ -14,7 +13,7 @@ class Emaildata(BaseModel):
     questions_answers: list[list[str, str]] = []
     remainder : bool
 
-def createMessage(emaildata: Emaildata):
+def createCheckinMessage(emaildata: Emaildata):
     msg = EmailMessage()
     msg['Subject'] = "MAP: Reminder to Check In!" if emaildata.remainder else "MAP: It's Time to Check In!"
     msg['From'] = formataddr(("MAPS", "yoloyoyoyolo12345@gmail.com"))
@@ -61,7 +60,7 @@ def createMessage(emaildata: Emaildata):
 def generate_list_email_data():
     emaildata_s : list(Emaildata) = list()
     #print(emaildata_s)
-    db = next(get_db())
+    db = next(get_database())
     goals: list[Goal] = get_checkin_goals(db)
     
     # if no goals
@@ -92,14 +91,29 @@ def generate_list_email_data():
         emaildata_s.append(data)
     return emaildata_s 
 
-def sendCheckin():
-    email_s = generate_list_email_data()
-    #print("Sendcheckin", email_s)
-    # if there are checkin emails to send 
-    if not email_s:
-        return
-        
-    for email in email_s:
-        sendmail(createMessage(email))
+def createNotificationMessage(email: str, user: str, commentuser: str, comment: str, posttitle: str):
+    msg = EmailMessage()
+    msg['Subject'] = "Notification Alert from MAPS"
+    msg['From'] = formataddr(("MAPS", "yoloyoyoyolo12345@gmail.com"))
+    #msg['Reply-To'] = formataddr(("MAPS", "email2@domain2.example"))
+    msg['To'] = formataddr((user, email))
+    body = f"""
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+    </head>
+    <body>
+    <p>Hi, {user}</p>
+    
+    <p>{commentuser} has commented "{comment}" on your post titled "{posttitle}"</p>
 
-# generate_list_email_data()
+    <p>Regards, </p>
+    <p>Team MAPS</p>
+    </body>
+    </html>
+    """
+
+    msg.set_content(body, subtype='html')
+
+    return msg
+

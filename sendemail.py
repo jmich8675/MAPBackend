@@ -14,30 +14,6 @@ def sendmail(message):
 
     gmail_password = os.getenv("PASSWORD")
 
-
-    # sent_from = gmail_user
-
-    # to = [gmail_user]
-
-    # subject = subject
-
-    # body = 'consectetur adipiscing elit'
-
-
-    # email_text = """\
-
-    # From: %s
-
-    # To: %s
-
-    # Subject: %s
-
-
-    # %s
-
-    # """ % (sent_from, ", ".join(to), subject, body)
-
-
     try:
 
         smtp_server = smtplib.SMTP_SSL('smtp.gmail.com', 465)
@@ -56,10 +32,3 @@ def sendmail(message):
     except Exception as ex:
 
         print ("Something went wrong….",ex)
-
-
-# sendmail(subject="First One")
-# sendmail(subject="Second One")
-# sendmail(subject="Third One")
-# sendmail(subject="Fourth One")
-# sendmail(subject="fifth One")
