@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Enum, DateTime
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Enum, DateTime, Table, UniqueConstraint
 from sqlalchemy.orm import relationship
 import enum
 from database import Base
@@ -6,6 +6,13 @@ from database import Base
 class response_types(enum.Enum):
     TYPE = 0
     SELECT = 1
+
+
+friendship = Table('friends', Base.metadata,
+                    Column('user_id', Integer, ForeignKey('users.id'), index=True),
+                    Column('friend_id', Integer, ForeignKey('users.id')),
+                    Column('pending', Boolean, default=True, index=True),
+                    UniqueConstraint('user_id', 'friend_id', name='unique_friendships'))
 
 class User(Base):
     __tablename__ = "users"
@@ -17,6 +24,9 @@ class User(Base):
     email = Column(String, unique=True, index=True)
     is_verified = Column(Boolean, default=False, index=True)
 
+    friends = relationship('User', secondary=friendship, primaryjoin=id==friendship.c.user_id,
+                            secondaryjoin=id==friendship.c.friend_id)
+
     goals = relationship("Goal", back_populates="creator")
     myposts = relationship("Post", back_populates="poster")
     #templates = relationsip("Template", back_populates="creator")
@@ -26,6 +36,7 @@ class Friends(Base):
 
     user1 = Column(Integer, ForeignKey("users.id"), index=True, primary_key=True)
     user2 = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    pending = Column(Boolean, default=True)
 
 class Goal(Base):
     __tablename__ = "goals"

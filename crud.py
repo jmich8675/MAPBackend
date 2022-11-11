@@ -1,6 +1,6 @@
 import enum
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, and_
 from datetime import date, timedelta, datetime
 import models, schemas
 
@@ -163,6 +163,7 @@ def get_posts_by_author(db: Session, post_author: int):
 def get_post_by_id(db: Session, post_id: int):
     return db.query(models.Post).filter(models.Post.post_id == post_id).first()
 
+### recent posts
 def get_posts_after_timestamp(db: Session, timestamp: datetime):
     return db.query(models.Post).filter(models.Post.timestamp > timestamp).all()
 
@@ -195,21 +196,37 @@ def get_responses_by_question(db: Session, question_id: int):
 
 def get_users_friends(db: Session, user_id: int):
     friends = []
-    for friend in db.query(models.Friends).filter(models.Friends.user1==user_id).all():
+    for friend in db.query(models.Friends).filter(models.Friends.user1==user_id) \
+            .filter(models.Friends.pending == False).all():
         friends.append(friend.user2)
-    for friend in db.query(models.Friends).filter(models.Friends.user2==user_id).all():
+    for friend in db.query(models.Friends).filter(models.Friends.user2==user_id) \
+            .filter(models.Friends.pending == False).all():
         friends.append(friend.user1)
     for i in range(len(friends)):
         friends[i] = get_user_profile(db=db, user_id=friends[i])
     return friends
-
-
 
 ###############################################################################
 
                         ### CR(U)D UPDATE METHODS ###
 
 ###############################################################################
+
+def accept_friend_request(db: Session, self_id, friend_id):
+
+    ### table isn't bidirectional, so we must change two entries
+    friendship1 = db.query(models.friendship).filter(and_(models.friendship.user_id==self_id, models.friendship.friend_id==friend_id)).first()
+    friendship2 = db.query(models.friendship).filter(and_(models.friendship.user_id==friend_id, models.friendship.friend_id==self_id)).first()
+
+    if friendship1 and friendship2:
+        friendship1.pending = False
+        friendship2.pending = False
+        db.commit()
+        db.refresh(friendship1)
+        db.refresh(friendship2)
+        return True ### friend request accepted
+
+    return False ### oh god, one (or both) of the friend entries are missing, how did that happen, this shouldn't be a possible state
 
 def update_recent_timestamp (db: Session, post_id: int, timestamp: datetime):
     post = get_post_by_id(db, post_id)
@@ -316,6 +333,20 @@ def change_verified_status(db: Session, user_id: int, is_verified: bool):
     else:
         return "User not found"
 
+def toggle_goal_private(db: Session, goal_id: int):
+    goal = get_goal(db, goal_id)
+    if goal:
+        if goal.is_public == True:
+            goal.is_public = False
+            db.commit()
+            db.refresh(goal)
+            return "Goal set Private"
+        else:
+            goal.is_public = True
+            db.commit()
+            db.refresh(goal)
+            return "Goal set Public"
+
 def after_check_in_update(goal_id: int, db: Session):
     goal = get_goal(db=db, goal_id=goal_id)
     db.query(models.Goal).filter(models.Goal.id == goal_id) \
@@ -337,6 +368,16 @@ def after_check_in_update(goal_id: int, db: Session):
                         ### CRU(D) DELETE METHODS ###
 
 ###############################################################################
+
+def remove_friend(db: Session, self_id: int, friend_id: int):
+    self = get_user(db, self_id)
+    friend = get_user(db, friend_id)
+    if friend in self.friends:
+        self.friends.remove(friend)
+        friend.friends.remove(self)
+        db.commit()
+        db.refresh(self)
+        db.refresh(friend)
 
 def delete_user(db: Session, user_id: int):
     deleted=db.query(models.User).filter(models.User.id == user_id).delete(synchronize_session="fetch")
