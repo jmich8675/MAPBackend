@@ -492,22 +492,27 @@ class TestAchieveGoal:
         assert res.status_code == 401
         assert res.json()["detail"] == "Not authenticated"
 
+
 # @pytest.fixture()
 # def create_question(session, create_custom_goal):
 #     crud.create_question(session, "How are your goals progressing", create_custom_goal["template_id"],
 #                          response_types.TYPE, 0)
 
+@pytest.fixture()
+def create_post(client, login_user):
+    user_data = login_user
+    post = {"title": "How do I know if I'M prengan?",
+            "content": "how would I know if I prengan and what are the sine's"}
+    res = client.post("/create_post",
+                      headers={"Authorization": "Bearer " + user_data["access_token"]},
+                      json=post)
+    assert res.status_code == 201
+    return res.json()
+
 class TestComment:
-    def test_leave_comment(self, client, login_user):
+    def test_leave_comment(self, client, login_user, create_post):
         user_data = login_user
-        # create forum post
-        post = {"title": "How do I know if I'M prengan?",
-                "content": "how would I know if I prengan and what are the sine's"}
-        res = client.post("/create_post",
-                          headers={"Authorization": "Bearer " + user_data["access_token"]},
-                          json=post)
-        assert res.status_code == 201
-        post_id = res.json()["post_id"]
+        post_id = create_post["post_id"]
         # leave comment
         comment = {"text": "u prengan if pregananant"}
         res = client.post("/leave_comment/{post_id}".format(post_id=post_id),
@@ -516,9 +521,62 @@ class TestComment:
         assert res.status_code == 200
         assert res.json()["message"] == "comment created!"
 
-    def test_view_comment(self, client, login_user):
-        assert False
+    def test_view_comment(self, client, login_user, create_post):
+        user_data = login_user
+        post_id = create_post["post_id"]
+        # leave comment
+        comment = {"text": "u prengan if pregananant"}
+        res = client.post("/leave_comment/{post_id}".format(post_id=post_id),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=comment)
+        assert res.status_code == 200
+        assert res.json()["message"] == "comment created!"
+
+        res = client.get("/comments/{post_id}".format(post_id=post_id),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.json()[0]["content"] == "u prengan if pregananant"
+        assert post_id == res.json()[0]["post_id"]
+
+    def test_multiple_comments(self, client, login_user, create_post):
+        user_data = login_user
+        post_id = create_post["post_id"]
+        # leave comment
+        comment = {"text": "u prengan if pregananant"}
+        res = client.post("/leave_comment/{post_id}".format(post_id=post_id),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=comment)
+        assert res.status_code == 200
+        assert res.json()["message"] == "comment created!"
+        # leave second comment
+        comment2 = {"text": "i think its gg"}
+        res = client.post("/leave_comment/{post_id}".format(post_id=post_id),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=comment2)
+        assert res.status_code == 200
+        assert res.json()["message"] == "comment created!"
+        # check to see if both appear
+        res = client.get("/comments/{post_id}".format(post_id=post_id),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert len(res.json()) == 2
+
     def test_leave_comment_nonexistent_post(self, client, login_user):
-        assert False
-    def test_leave_comment_unauthorized(self, client, login_user):
-        assert False
+        user_data = login_user
+        comment = {"text": "u prengan if pregananant"}
+        res = client.post("/leave_comment/{post_id}".format(post_id=69),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=comment)
+        print(res.json())
+        assert res.status_code == 400
+        assert res.json()["detail"] == "Forum post could not be found"
+
+    def test_leave_comment_unauthorized(self, client, login_user, create_post):
+        user_data = login_user
+        post_id = create_post["post_id"]
+        # leave comment
+        comment = {"text": "u prengan if pregananant"}
+        # omit Authorization header to test authentication
+        res = client.post("/leave_comment/{post_id}".format(post_id=post_id),
+                          # headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=comment)
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"

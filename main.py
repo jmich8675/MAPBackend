@@ -13,7 +13,7 @@ from datetime import date, datetime, timedelta
 from functools import wraps
 import bcrypt
 from fastapi.routing import APIRoute
-from fastapi.exceptions import RequestValidationError
+import exceptions
 from database import get_database
 
 # DATABASE
@@ -594,7 +594,7 @@ def create_post(postjson: PostInfo, response: Response, db: Session = Depends(ge
     return message
 
 
-@app.get("/see_posts")  # response_model=list[schemas.Post]
+@app.get("/see_posts", response_model=list[schemas.Post])
 def get_posts(db: Session = Depends(get_db), skip: int = 0, limit: int = 100,
               current_user: models.User = Depends(get_current_user)):
     return crud.get_feed(db=db, skip=skip, limit=limit)
@@ -625,29 +625,29 @@ class Commment(BaseModel):
 
 
 @app.post("/leave_comment/{post_id}")
-def leave_comment(post_id: int, comment: Commment, response: Response, db: Session = Depends(get_db),
+def leave_comment(post_id: int, comment: Commment, db: Session = Depends(get_db),
                   current_user: models.User = Depends(get_current_user)):
     if not current_user:
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"user is not real"}
+        raise exceptions.NonexistentUserException
     post = crud.get_post_by_id(db=db, post_id=post_id)
     if not post:
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return {"post not found"}
-    comment = crud.create_comment(db=db, content=comment.text, post_id=post_id,comment_author=current_user.id)
+        raise exceptions.NonexistentForumPostException
+    comment = crud.create_comment(db=db, content=comment.text, post_id=post_id, comment_author=current_user.id)
     message = {"message": "comment created!",
                "comment_id": comment.comment_id}
-    response.status_code = status.HTTP_200_OK
     return message
+
 
 @app.get("/comments/{post_id}")
 def see_comments(post_id: int, db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
     return crud.get_comments_by_post(db=db, post_id=post_id)
 
+
 class Peers(BaseModel):
     user_id1: int
     user_id2: int
+
 
 @app.post("/create_friend_request")
 def create_friend_request(peers: Peers, db: Session = Depends(get_db)):
@@ -660,17 +660,21 @@ def create_friend_request(peers: Peers, db: Session = Depends(get_db)):
     message = {"friendship created"}
     return message
 
+
 @app.post("/accept_friend_request")
 def accept_friend_request(peers: Peers, db: Session = Depends(get_db)):
     return
+
 
 @app.get("/friends")
 def my_friends(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_users_friends(db=db, user_id=current_user.id)
 
+
 @app.get("/public_goals/{user_id}")
 def public_goals(user_id: int, db: Session = Depends(get_db)):
     return crud.get_public_goals(db=db, user_id=user_id)
+
 
 @app.get("/togglepublic/{goal_id}")
 def togglepublic(goal_id: int, response: Response, db: Session = Depends(get_db),
