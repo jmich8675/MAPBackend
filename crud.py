@@ -193,7 +193,24 @@ def get_responses_by_question(db: Session, question_id: int):
     return db.query(models.Response).filter(models.Response.question_id == question_id).all()
 
 ### GET FRIENDS
+def get_friendship(db: Session, user_id1: int, user_id2: int):
+    return db.query(models.Friends) \
+        .filter(or_(and_(models.Friends.user1==user_id1, models.Friends.user2==user_id2),
+                    and_(models.Friends.user1==user_id2, models.Friends.user2==user_id1))).first()
 
+def accept_friend_request(db: Session, user_id1: int, user_id2: int):
+    friendship = get_friendship(db=db, user_id1=user_id1, user_id2=user_id2)
+    friendship.pending = False
+    db.commit()
+    db.refresh(friendship)
+    return friendship
+
+def deny_friend_request(db: Session, user_id1: int, user_id2: int):
+    friendship = get_friendship(db=db, user_id1=user_id1, user_id2=user_id2)
+    db.delete(friendship)
+    db.commit()
+    return "friendship ended"
+    
 def get_users_friends(db: Session, user_id: int):
     friends = []
     for friend in db.query(models.Friends).filter(models.Friends.user1==user_id) \
@@ -211,22 +228,6 @@ def get_users_friends(db: Session, user_id: int):
                         ### CR(U)D UPDATE METHODS ###
 
 ###############################################################################
-
-def accept_friend_request(db: Session, self_id, friend_id):
-
-    ### table isn't bidirectional, so we must change two entries
-    friendship1 = db.query(models.friendship).filter(and_(models.friendship.user_id==self_id, models.friendship.friend_id==friend_id)).first()
-    friendship2 = db.query(models.friendship).filter(and_(models.friendship.user_id==friend_id, models.friendship.friend_id==self_id)).first()
-
-    if friendship1 and friendship2:
-        friendship1.pending = False
-        friendship2.pending = False
-        db.commit()
-        db.refresh(friendship1)
-        db.refresh(friendship2)
-        return True ### friend request accepted
-
-    return False ### oh god, one (or both) of the friend entries are missing, how did that happen, this shouldn't be a possible state
 
 def update_recent_timestamp (db: Session, post_id: int, timestamp: datetime):
     post = get_post_by_id(db, post_id)

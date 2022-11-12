@@ -91,7 +91,7 @@ class Post(Base):
     content = Column(String, index=True)
     post_author = Column(Integer, ForeignKey("users.id"))
     timestamp = Column(DateTime, index=True)
-    recent_comment_timestamp = Column(DateTime, index=True)
+    recent_comment_timestamp = Column(DateTime, index=True, nullable=True)
 
     poster = relationship("User", back_populates="myposts")
     comments = relationship("Comment", backref="posts", cascade = "all, delete-orphan", passive_deletes=True)
