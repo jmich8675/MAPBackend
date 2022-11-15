@@ -1,5 +1,6 @@
 from typing import Union
-
+from functools import wraps
+from time import perf_counter
 from fastapi import FastAPI, Response, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -22,6 +23,7 @@ from sqlalchemy.orm import Session
 import crud, models, schemas
 from database import engine
 
+
 models.Base.metadata.create_all(bind=engine)
 
 Base2 = models.Base
@@ -32,6 +34,24 @@ def get_db():
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+def measure_time(func):
+    """decorator to measure time for function execution"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+
+        start_time = perf_counter()
+
+        result = func(*args, **kwargs)
+
+        delta = round(perf_counter() - start_time, 5)
+
+        print(f"\033[48;5;4m{func.__name__} : {delta*1000} ms\033[0m")
+
+        return result
+
+    return wrapper
 
 
 class TokenData(BaseModel):
@@ -129,12 +149,14 @@ app = FastAPI(middleware=middleware)
 # CORS STUFF
 
 @app.get("/")
+@measure_time
 def root():
     return {"message": "Welcome to MAP website"}
 
 
 # trying post request
 @app.post("/signup")
+@measure_time
 def signup(user: User, response: Response, db: Session = Depends(get_db)):
     # print(f"signup {user.username} {user.email} {user.password}")
 
@@ -657,41 +679,63 @@ class Peers(BaseModel):
     user_id2: int
 
 
-@app.post("/send_friend_request/{user_id}")
-def send_friend_request(user_id: int, db: Session = Depends(get_db),
+@app.post("/send_friend_request/{username}")
+def send_friend_request(username: str, db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
+    user1 = current_user
+    user2 = crud.get_user_by_username(db=db, username=username)
+    if not user1 or not user2:
+        message = {"user(s) not found!"}
+        return message
+    if user1.id == user2.id:
+        message = {"you cannot send friend requests to yourself"}
+        return message
+    if crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id):
+        message = {"you are already friends!"}
+        return message
+    crud.create_friend_request(db=db, user_id1=current_user.id, user_id2=user2.id)
+    message = {"friendship created"}
+    return message
+
+@app.get("/my_friend_requests")
+def see_friend_requests(db: Session = Depends(get_db),
+                        current_user: models.User = Depends(get_current_user)):
+    return crud.get_friend_requests(db=db, user_id=current_user.id)
+
+@app.post("/accept_friend_request/{user_id}")
+def accept_friend_request(user_id: int, db: Session = Depends(get_db),
+                          current_user: models.User = Depends(get_current_user)):
     user1 = current_user
     user2 = crud.get_user(db=db, user_id=user_id)
     if not user1 or not user2:
         message = {"user(s) not found!"}
         return message
-    crud.make_friends(db=db, user_id1=current_user.id, user_id2=user_id)
-    message = {"friendship created"}
-    return message
-
-
-@app.post("/accept_friend_request")
-def accept_friend_request(peers: Peers, db: Session = Depends(get_db)):
-    friendship = crud.get_friendship(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
+    friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
     if not friendship:
         return {"friendship does not exist"}
     if not friendship.pending:
         message = {"something is wrong..."}
         return message
-    crud.accept_friend_request(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
+    crud.accept_friend_request(db=db, user_id1=user1.id, user_id2=user2.id)
     message = {"friendship accepted"}
     return message
 
 
-@app.post("/deny_friend_request")
-def deny_friend_requesst(peers: Peers, db: Session = Depends(get_db)):
-    friendship = crud.get_friendship(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
+@app.post("/deny_friend_request/{user_id}")
+def deny_friend_requesst(user_id: int, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(get_current_user)):
+    user1 = current_user
+    user2 = crud.get_user(db=db, user_id=user_id)
+    if not user1 or not user2:
+        message = {"user(s) not found!"}
+        return message
+    friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
     if not friendship:
         return {"friendship does not exist"}
     if not friendship.pending:
         message = {"hmmmmm......"}
         return message
-    crud.deny_friend_request(db=db, user_id1=peers.user_id1, user_id2=peers.user_id2)
+    crud.deny_friend_request(db=db, user_id1=user1.id, user_id2=user2.id)
     message = {"friendship denied...."}
     return message
 

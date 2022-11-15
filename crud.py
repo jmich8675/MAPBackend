@@ -193,10 +193,10 @@ def get_responses_by_question(db: Session, question_id: int):
     return db.query(models.Response).filter(models.Response.question_id == question_id).all()
 
 ### GET FRIENDS
+
 def get_friendship(db: Session, user_id1: int, user_id2: int):
     return db.query(models.Friends) \
-        .filter(or_(and_(models.Friends.user1==user_id1, models.Friends.user2==user_id2),
-                    and_(models.Friends.user1==user_id2, models.Friends.user2==user_id1))).first()
+        .filter(and_(models.Friends.user1==user_id2, models.Friends.user2==user_id1)).first()
 
 def accept_friend_request(db: Session, user_id1: int, user_id2: int):
     friendship = get_friendship(db=db, user_id1=user_id1, user_id2=user_id2)
@@ -218,6 +218,15 @@ def get_users_friends(db: Session, user_id: int):
         friends.append(friend.user2)
     for friend in db.query(models.Friends).filter(models.Friends.user2==user_id) \
             .filter(models.Friends.pending == False).all():
+        friends.append(friend.user1)
+    for i in range(len(friends)):
+        friends[i] = get_user_profile(db=db, user_id=friends[i])
+    return friends
+
+def get_friend_requests(db: Session, user_id: int):
+    friends = []
+    for friend in db.query(models.Friends).filter(models.Friends.user2==user_id) \
+            .filter(models.Friends.pending == True).all():
         friends.append(friend.user1)
     for i in range(len(friends)):
         friends[i] = get_user_profile(db=db, user_id=friends[i])
