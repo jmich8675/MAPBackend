@@ -1,5 +1,6 @@
 from typing import Union
-
+from functools import wraps
+from time import perf_counter
 from fastapi import FastAPI, Response, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -22,6 +23,7 @@ from sqlalchemy.orm import Session
 import crud, models, schemas
 from database import engine
 
+
 models.Base.metadata.create_all(bind=engine)
 
 Base2 = models.Base
@@ -32,6 +34,24 @@ def get_db():
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+
+def measure_time(func):
+    """decorator to measure time for function execution"""
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+
+        start_time = perf_counter()
+
+        result = func(*args, **kwargs)
+
+        delta = round(perf_counter() - start_time, 5)
+
+        print(f"\033[48;5;4m{func.__name__} : {delta*1000} ms\033[0m")
+
+        return result
+
+    return wrapper
 
 
 class TokenData(BaseModel):
@@ -129,12 +149,14 @@ app = FastAPI(middleware=middleware)
 # CORS STUFF
 
 @app.get("/")
+@measure_time
 def root():
     return {"message": "Welcome to MAP website"}
 
 
 # trying post request
 @app.post("/signup")
+@measure_time
 def signup(user: User, response: Response, db: Session = Depends(get_db)):
     # print(f"signup {user.username} {user.email} {user.password}")
 

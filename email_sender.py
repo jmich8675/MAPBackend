@@ -1,4 +1,4 @@
-from emailbuilder import generate_list_email_data, createCheckinMessage, createNotificationMessage
+from emailbuilder import generate_list_email_data, createCheckinMessage, createNotificationMessage,createVerificationMessage
 from sendemail import sendmail
 
 # function to send checkin emails
@@ -16,7 +16,11 @@ def sendCheckin():
 def sendNotification(email: str, user: str, commentuser: str, comment: str, posttitle: str):
     sendmail(createNotificationMessage(email=email, user=user, commentuser=commentuser, comment=comment, posttitle=posttitle))
 
-#sendNotification("yoloyoyoyolo12345@gmail.com", "yolo", "b8man", "this is nice post", "How to improve fitness")
+#function to send email Verification request
+def emailVerification(email: str, user: str, token: str):
+    sendmail(createVerificationMessage(email=email, user=user, token=token))
+
+emailVerification("yoloyoyoyolo12345@gmail.com", "yolo", "Howtoimprovefitness")
 
     
 
