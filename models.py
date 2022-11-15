@@ -104,3 +104,4 @@ class Comment(Base):
     timestamp = Column(DateTime, index=True)
     post_id = Column(Integer, ForeignKey("posts.post_id", ondelete="CASCADE"))
     comment_author = Column(Integer, ForeignKey("users.id"))
+

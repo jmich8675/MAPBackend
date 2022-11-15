@@ -664,12 +664,29 @@ def leave_comment(post_id: int, comment: Commment, db: Session = Depends(get_db)
                "comment_id": comment.comment_id}
     return message
 
+class comments_with_author(BaseModel):
+    comment_id: int
+    content: str
+    timestamp: datetime
+    post_id: int
+    comment_author: int
+    author_username: str
 
 @app.get("/comments/{post_id}")
 def see_comments(post_id: int, db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
-    return crud.get_comments_by_post(db=db, post_id=post_id)
-
+    real_comments = []
+    comments = crud.get_comments_by_post(db=db, post_id=post_id)
+    for i in range(len(comments)):
+        real_comments.append(comments_with_author(
+            comment_id = comments[i].comment_id,
+            content=comments[i].content,
+            timestamp=comments[i].timestamp,
+            post_id=comments[i].post_id,
+            comment_author=comments[i].comment_author,
+            author_username=crud.get_user(db=db, user_id=comments[i].comment_author).username   
+        ))
+    return real_comments
 
 class Peers(BaseModel):
     user_id1: int
