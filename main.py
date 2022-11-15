@@ -329,7 +329,7 @@ class BigCustomGoal(BaseModel):
 def create_custom_goal(goaljson: BigCustomGoal,
                        response: Response, db: Session = Depends(get_db),
                        current_user: models.User = Depends(get_current_user)):
-    print(goaljson.questions_answers)
+    # print(goaljson.questions_answers)
     if not current_user:
         message = {"message": "user not found"}
         response.status_code = status.HTTP_400_BAD_REQUEST
@@ -355,7 +355,10 @@ def create_custom_goal(goaljson: BigCustomGoal,
         answer = crud.create_response(db=db, text=QA[1], question_id=question.question_id,
                                       check_in_number=0, goal_id=goal.id)
 
-    message = {"message": "custom goal created!", "goal_id": goal.id, "template_id": template.template_id}
+    message = {"message": "custom goal created!",
+               "goal_id": goal.id,
+               "template_id": template.template_id,
+               "creator_id": current_user.id}
     response.status_code = status.HTTP_201_CREATED
     return message
 
@@ -703,7 +706,7 @@ def public_goals(user_id: int, db: Session = Depends(get_db)):
     return crud.get_public_goals(db=db, user_id=user_id)
 
 
-@app.get("/togglepublic/{goal_id}")
+@app.put("/togglepublic/{goal_id}")
 def togglepublic(goal_id: int, response: Response, db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)

@@ -311,7 +311,7 @@ def toggle_goal_paused(db: Session, goal_id: int):
 def toggle_public_private(db: Session, goal_id: int):
     goal = get_goal(db, goal_id)
     if goal:
-        if goal.is_public == True:
+        if goal.is_public:
             goal.is_public = False
             db.commit()
             db.refresh(goal)

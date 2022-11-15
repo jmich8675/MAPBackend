@@ -509,6 +509,7 @@ def create_post(client, login_user):
     assert res.status_code == 201
     return res.json()
 
+
 class TestComment:
     def test_leave_comment(self, client, login_user, create_post):
         user_data = login_user
@@ -565,7 +566,6 @@ class TestComment:
         res = client.post("/leave_comment/{post_id}".format(post_id=69),
                           headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=comment)
-        print(res.json())
         assert res.status_code == 400
         assert res.json()["detail"] == "Forum post could not be found"
 
@@ -580,3 +580,20 @@ class TestComment:
                           json=comment)
         assert res.status_code == 401
         assert res.json()["detail"] == "Not authenticated"
+
+
+class TestGoalsPublicPrivate:
+    def test_goal_togglepublic(self, client, login_user, create_custom_goal):
+        user_data = login_user
+        # make sure new goal is not public
+        res = client.get("/public_goals/{user_id}".format(user_id=create_custom_goal["creator_id"]),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert len(res.json()) == 0
+
+        res = client.put("/togglepublic/{goal_id}".format(goal_id=create_custom_goal["goal_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.json() == "Goal now public!"
+        res = client.get("/public_goals/{user_id}".format(user_id=create_custom_goal["creator_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.json()[0]["goal_name"] == "Not Die"
+        assert res.json()[0]["is_public"]
