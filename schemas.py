@@ -88,6 +88,7 @@ class User(UserBase):
     goals: list[Goal] = []
     templates: list[Template] = []
     is_verified: bool
+    timestamp: datetime
     
     ###friends: list[User] = []
 
