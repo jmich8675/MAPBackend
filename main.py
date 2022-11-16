@@ -1,6 +1,5 @@
+from utiltity import measure_time, is_email
 from typing import Union
-from functools import wraps
-from time import perf_counter
 from fastapi import FastAPI, Response, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -34,24 +33,6 @@ def get_db():
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-
-def measure_time(func):
-    """decorator to measure time for function execution"""
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-
-        start_time = perf_counter()
-
-        result = func(*args, **kwargs)
-
-        delta = round(perf_counter() - start_time, 5)
-
-        print(f"\033[48;5;4m{func.__name__} : {delta*1000} ms\033[0m")
-
-        return result
-
-    return wrapper
 
 
 class TokenData(BaseModel):
