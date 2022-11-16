@@ -84,6 +84,23 @@ def create_friend_request(db: Session, user_id1: int, user_id2: int):
     db.refresh(db_friends)
     return db_friends
 
+###user_id is the creator of the group
+def create_group(db: Session, name: str, user_id: int):
+    db_group = models.Groups(creator_id=user_id, group_name=name)
+    db.add(db_group)
+    db.commit()
+    db.refresh(db_group)
+    
+    ###creator of a group should automatically be a member, so create invite, then accept invite
+    create_group_invite(db=db, group_id=db_group.group_id, user_id=user_id)
+    accept_group_invite(db=db, group_id=db_group.group_id, user_id=user_id)
+
+def create_group_invite(db: Session, group_id: int, user_id: int):
+    db_groupMember = models.GroupMembers(group_id=group_id, user_id=user_id)
+    db.add(db_groupMember)
+    db.commit()
+    db.refresh(db_groupMember)
+    return db_groupMember
 
 ###############################################################################
 
@@ -231,6 +248,44 @@ def get_friend_requests(db: Session, user_id: int):
     for i in range(len(friends)):
         friends[i] = get_user_profile(db=db, user_id=friends[i])
     return friends
+
+def accept_group_invite(db: Session, group_id: int, user_id: int):
+    membership = get_membership(db=db, group_id=group_id, user_id=user_id)
+    membership.pending = False
+    db.commit()
+    db.refresh(membership)
+    return membership
+
+def deny_group_invite(db: Session, group_id: int, user_id: int):
+    membership = get_membership(db=db, group_id=group_id, user_id=user_id)
+    db.delete(membership)
+    db.commit()
+    return "membership denied"
+
+def get_group(db: Session, group_id: int):
+    return db.query(models.Groups).filter(models.Groups.group_id==group_id).first()
+
+def get_membership(db: Session, group_id: int, user_id: int):
+    return db.query(models.GroupMembers).filter(and_(models.GroupMembers.group_id==group_id, models.GroupMembers.user_id==user_id)).first()
+
+def get_group_members(db: Session, group_id: int):
+    members = []
+    for member in db.query(models.GroupMembers).filter(models.GroupMembers.group_id==group_id).filter(models.GroupMembers.pending == False).all():
+        members.append(member.user_id)
+    
+    for i in range(len(members)):
+        members[i] = get_user_profile(db=db, user_id=members[i])
+
+    return members
+
+def get_pending_invites(db: Session, group_id: int):
+    pendingMembers = []
+    for member in db.query(models.GroupMembers).filter(models.GroupMembers.group_id==group_id).filter(models.GroupMembers.pending == True).all():
+        pendingMembers.append(member.user_id)
+
+    for i in range(len(pendingMembers)):
+        pendingMembers[i] = get_user_profile(db=db, user_id=pendingMembers[i])
+
 
 ###############################################################################
 
@@ -397,16 +452,6 @@ def update_password(user_id: int, newhash: str, newsalt: str, db: Session):
                         ### CRU(D) DELETE METHODS ###
 
 ###############################################################################
-
-def remove_friend(db: Session, self_id: int, friend_id: int):
-    self = get_user(db, self_id)
-    friend = get_user(db, friend_id)
-    if friend in self.friends:
-        self.friends.remove(friend)
-        friend.friends.remove(self)
-        db.commit()
-        db.refresh(self)
-        db.refresh(friend)
 
 def delete_user(db: Session, user_id: int):
     deleted=db.query(models.User).filter(models.User.id == user_id).delete(synchronize_session="fetch")
