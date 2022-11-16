@@ -190,16 +190,6 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
 
 
 def verify_password(plain_password, hashed_password):
-    # print("Plain Password:")
-    # print(plain_password)
-    # print(type(plain_password))
-    # print("Hashed Password:")
-    # print(hashed_password)
-    # print(type(hashed_password))
-    #
-    # print("Encoded Plain Password:")
-    # print(plain_password.encode('utf8'))
-    # print(type(plain_password.encode('utf8')))
 
     return bcrypt.checkpw(plain_password.encode('utf8'), hashed_password.encode('utf8'))
 
@@ -219,6 +209,7 @@ def authenticate_user(db, username: str, password: str):
 
 # this function used to be async
 @app.post("/token", response_model=Token)
+@measure_time
 def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(db, form_data.username, form_data.password)
     if not user:
@@ -268,11 +259,13 @@ def verify_username_and_post(username: str, post_id: int, response: Response,
 
 
 @app.get("/user/me")
+@measure_time
 def home(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return {"username": current_user.username}
 
 
 @app.get("/goals")
+@measure_time
 def home(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return {"message": crud.get_unachieved_goals(db=db, username=current_user.username)}
 
@@ -290,6 +283,7 @@ class BigGoal(BaseModel):
 
 
 @app.post("/create_specific_goal")
+@measure_time
 def create_specific_goal(goaljson: BigGoal, response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     user = crud.get_user_by_username(db=db, username=current_user.username)
@@ -329,6 +323,7 @@ class BigCustomGoal(BaseModel):
 
 
 @app.post("/create_custom_goal")
+@measure_time
 def create_custom_goal(goaljson: BigCustomGoal,
                        response: Response, db: Session = Depends(get_db),
                        current_user: models.User = Depends(get_current_user)):
@@ -367,6 +362,7 @@ def create_custom_goal(goaljson: BigCustomGoal,
 
 
 @app.post("/create_template")
+@measure_time
 def create_template(template: schemas.TemplateCreate,
                     response: Response, db: Session = Depends(get_db),
                     current_user: models.User = Depends(get_current_user)):
@@ -390,6 +386,7 @@ class GoalInfo(BaseModel):
 
 
 @app.get("/progress/{goal_id}")
+@measure_time
 def view_goal_progress(goal_id: int, response: Response, db: Session = Depends(get_db),
                        current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=goal_id)
@@ -413,6 +410,7 @@ def view_goal_progress(goal_id: int, response: Response, db: Session = Depends(g
 
 
 @app.get("/templates", response_model=list[schemas.Template])
+@measure_time
 def view_premade_templates(db: Session = Depends(get_db), skip: int = 0, limit: int = 100,
                            current_user: models.User = Depends(get_current_user)):
     return crud.get_premade_templates(db=db, skip=skip, limit=limit)
@@ -426,6 +424,7 @@ class PastWriting(BaseModel):
 
 # might be unsecure
 @app.get("/responses/{goal_id}")
+@measure_time
 def view_responses(goal_id: int, response: Response, db: Session = Depends(get_db),
                    current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -450,6 +449,7 @@ def view_responses(goal_id: int, response: Response, db: Session = Depends(get_d
 
 # might be unsecure
 @app.post("/create_response")
+@measure_time
 def create_response(resp: schemas.ResponseCreate, response: Response,
                     db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=resp.goal_id)
@@ -463,6 +463,7 @@ def create_response(resp: schemas.ResponseCreate, response: Response,
 
 
 @app.put("/achieved_goal/{goal_id}")
+@measure_time
 def achieved_goal(goal_id: int, response: Response, db: Session = Depends(get_db),
                   current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -485,6 +486,7 @@ def achieved_goal(goal_id: int, response: Response, db: Session = Depends(get_db
 
 
 @app.delete("/delete_goal/{goal_id}")
+@measure_time
 def delete_goal(goal_id: int, response: Response, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -511,6 +513,7 @@ class CheckInPeriod(BaseModel):
 
 
 @app.put("/edit_check_in_period/{goal_id}")
+@measure_time
 def edit_check_in_period(goal_id: int, check_in_period: CheckInPeriod,
                          response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
@@ -534,6 +537,7 @@ def edit_check_in_period(goal_id: int, check_in_period: CheckInPeriod,
 
 
 @app.put("/update_database")
+@measure_time
 def update_database(response: Response, db: Session = Depends(get_db),
                     current_user: models.User = Depends(get_current_user)):
     crud.update_can_check_in(db=db)
@@ -543,6 +547,7 @@ def update_database(response: Response, db: Session = Depends(get_db),
 
 
 @app.get("/list_check_in_questions/{goal_id}")
+@measure_time
 def list_check_in_questions(goal_id: int, response: Response, db: Session = Depends(get_db),
                             current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -556,6 +561,7 @@ class CheckInAnswers(BaseModel):
 
 
 @app.post("/check_in/{goal_id}")
+@measure_time
 def check_in(goal_id: int, check_in_answers: CheckInAnswers,
              response: Response, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -576,6 +582,7 @@ def check_in(goal_id: int, check_in_answers: CheckInAnswers,
 
 
 @app.put("/togglepause/{goal_id}")
+@measure_time
 def togglepause(goal_id: int, response: Response, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -586,6 +593,7 @@ def togglepause(goal_id: int, response: Response, db: Session = Depends(get_db),
 
 
 @app.get("/achieved_goals")
+@measure_time
 def achieved_goals(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_achieved_goals(username=current_user.username, db=db)
 
@@ -596,6 +604,7 @@ class PostInfo(BaseModel):
 
 
 @app.post("/create_post")
+@measure_time
 def create_post(postjson: PostInfo, response: Response, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
     post = crud.create_post(db=db, title=postjson.title, content=postjson.content, post_author=current_user.id)
@@ -606,6 +615,7 @@ def create_post(postjson: PostInfo, response: Response, db: Session = Depends(ge
 
 
 @app.get("/see_posts", response_model=list[schemas.Post])
+@measure_time
 def get_posts(db: Session = Depends(get_db), skip: int = 0, limit: int = 100,
               current_user: models.User = Depends(get_current_user)):
     return crud.get_feed(db=db, skip=skip, limit=limit)
@@ -616,6 +626,7 @@ class EditPost(BaseModel):
 
 
 @app.put("/edit_post/{post_id}")
+@measure_time
 def edit_post(post_id: int, editjson: EditPost,
               response: Response, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     verify_username_and_post(username=current_user.username, post_id=post_id,
@@ -636,6 +647,7 @@ class Commment(BaseModel):
 
 
 @app.post("/leave_comment/{post_id}")
+@measure_time
 def leave_comment(post_id: int, comment: Commment, db: Session = Depends(get_db),
                   current_user: models.User = Depends(get_current_user)):
     if not current_user:
@@ -657,6 +669,7 @@ class comments_with_author(BaseModel):
     author_username: str
 
 @app.get("/comments/{post_id}")
+@measure_time
 def see_comments(post_id: int, db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
     real_comments = []
@@ -678,6 +691,7 @@ class Peers(BaseModel):
 
 
 @app.post("/send_friend_request/{username}")
+@measure_time
 def send_friend_request(username: str, db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
     user1 = current_user
@@ -696,6 +710,7 @@ def send_friend_request(username: str, db: Session = Depends(get_db),
     return message
 
 @app.get("/my_friend_requests")
+@measure_time
 def see_friend_requests(db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
     return crud.get_friend_requests(db=db, user_id=current_user.id)
@@ -720,6 +735,7 @@ def accept_friend_request(user_id: int, db: Session = Depends(get_db),
 
 
 @app.post("/deny_friend_request/{user_id}")
+@measure_time
 def deny_friend_requesst(user_id: int, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     user1 = current_user
@@ -739,6 +755,7 @@ def deny_friend_requesst(user_id: int, db: Session = Depends(get_db),
 
 
 @app.get("/friends")
+@measure_time
 def my_friends(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_users_friends(db=db, user_id=current_user.id)
 
@@ -749,6 +766,7 @@ def public_goals(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/togglepublic/{goal_id}")
+@measure_time
 def togglepublic(goal_id: int, response: Response, db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
