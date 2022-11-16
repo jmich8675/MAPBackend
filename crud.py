@@ -371,7 +371,26 @@ def after_check_in_update(goal_id: int, db: Session):
     db.commit()
     return
 
+def update_email_address(user_id: int, email: str, db: Session):
+    user = get_user(db=db, user_id=user_id)
+    user.email = email
+    db.commit()
 
+def update_email_address(user_id: int, email: str, db: Session):
+    user = get_user(db=db, user_id=user_id)
+    user.email = email
+    db.commit()
+
+def update_username(user_id: int, username: str, db: Session):
+    user = get_user(db=db, user_id=user_id)
+    user.username = username
+    db.commit()
+
+def update_password(user_id: int, newhash: str, newsalt: str, db: Session):
+    user = get_user(db=db, user_id=user_id)
+    user.pw_hash = newhash
+    user.pw_salt = newsalt
+    db.commit()
 
 ###############################################################################
 

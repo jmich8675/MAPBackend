@@ -771,3 +771,46 @@ def togglepublic(goal_id: int, response: Response, db: Session = Depends(get_db)
                  current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
     return crud.toggle_public_private(db=db, goal_id=goal_id)
+
+# SETTINGS
+
+class NewEmail(BaseModel):
+    email:str
+
+@app.put("/change_email_address")
+def change_email_address(emailjson: NewEmail, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(get_current_user)):
+    crud.update_email_address(user_id=current_user.id, email=emailjson.email, db=db)
+    message = {"email updated"}
+    return message
+
+class NewUsername(BaseModel):
+    username: str
+
+@app.put("/change_username")
+def change_username(json: NewUsername, db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_user)):
+    crud.update_username(user_id=current_user.id, username=json.username, db=db)
+    message = {"username updated"}
+    return message
+    #make sure to logout
+
+class NewPassword(BaseModel):
+    repw: str
+    newpw: str
+
+
+@app.put("/change_password")
+def change_password(pwjson: NewPassword, response: Response, db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_user)):
+    if not verify_password(pwjson.repw, current_user.pw_hash):
+        message = {"passwords do not match!"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return message
+    salt = bcrypt.gensalt(12)
+    passhash = bcrypt.hashpw(pwjson.newpw.encode('utf-8'), salt)
+    salt = salt.decode('utf-8')
+    passhash = passhash.decode('utf-8')
+    crud.update_password(user_id=current_user.id, newhash=passhash, newsalt=salt, db=db)
+    message = {"password updated"}
+    return message
