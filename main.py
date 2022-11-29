@@ -692,18 +692,21 @@ class Peers(BaseModel):
 
 @app.post("/send_friend_request/{username}")
 @measure_time
-def send_friend_request(username: str, db: Session = Depends(get_db),
+def send_friend_request(username: str, response: Response, db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
     user1 = current_user
     user2 = crud.get_user_by_username(db=db, username=username)
     if not user1 or not user2:
         message = {"user(s) not found!"}
+        response.status_code = status.HTTP_403_FORBIDDEN
         return message
     if user1.id == user2.id:
         message = {"you cannot send friend requests to yourself"}
+        response.status_code = status.HTTP_403_FORBIDDEN
         return message
     if crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id):
         message = {"you are already friends!"}
+        response.status_code = status.HTTP_403_FORBIDDEN
         return message
     crud.create_friend_request(db=db, user_id1=current_user.id, user_id2=user2.id)
     message = {"friendship created"}
@@ -716,16 +719,19 @@ def see_friend_requests(db: Session = Depends(get_db),
     return crud.get_friend_requests(db=db, user_id=current_user.id)
 
 @app.post("/accept_friend_request/{user_id}")
-def accept_friend_request(user_id: int, db: Session = Depends(get_db),
+def accept_friend_request(user_id: int, response: Response, db: Session = Depends(get_db),
                           current_user: models.User = Depends(get_current_user)):
     user1 = current_user
     user2 = crud.get_user(db=db, user_id=user_id)
     if not user1 or not user2:
         message = {"user(s) not found!"}
+        response.status_code = status.HTTP_403_FORBIDDEN
         return message
     friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
     if not friendship:
-        return {"friendship does not exist"}
+        message = {"friendship does not exist"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
     if not friendship.pending:
         message = {"something is wrong..."}
         return message
@@ -736,16 +742,19 @@ def accept_friend_request(user_id: int, db: Session = Depends(get_db),
 
 @app.post("/deny_friend_request/{user_id}")
 @measure_time
-def deny_friend_requesst(user_id: int, db: Session = Depends(get_db),
+def deny_friend_requesst(user_id: int, response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     user1 = current_user
     user2 = crud.get_user(db=db, user_id=user_id)
     if not user1 or not user2:
         message = {"user(s) not found!"}
+        response.status_code = status.HTTP_403_FORBIDDEN
         return message
     friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
     if not friendship:
-        return {"friendship does not exist"}
+        message = {"friendship does not exist"}
+        response.status_code = status.HTTP_403_FORBIDDEN
+        return message
     if not friendship.pending:
         message = {"hmmmmm......"}
         return message

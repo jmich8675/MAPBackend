@@ -88,7 +88,7 @@ class User(UserBase):
     goals: list[Goal] = []
     templates: list[Template] = []
     is_verified: bool
-    verification_date: date  | None  
+    verification_sent_date: date  | None  
     ###friends: list[User] = []
 
     class Config:
