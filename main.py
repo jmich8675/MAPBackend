@@ -23,7 +23,6 @@ from sqlalchemy.orm import Session
 import crud, models, schemas
 from database import engine
 
-
 models.Base.metadata.create_all(bind=engine)
 
 Base2 = models.Base
@@ -38,16 +37,16 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 def measure_time(func):
     """decorator to measure time for function execution"""
+
     @wraps(func)
     def wrapper(*args, **kwargs):
-
         start_time = perf_counter()
 
         result = func(*args, **kwargs)
 
         delta = round(perf_counter() - start_time, 5)
 
-        print(f"\033[48;5;4m{func.__name__} : {delta*1000} ms\033[0m")
+        print(f"\033[48;5;4m{func.__name__} : {delta * 1000} ms\033[0m")
 
         return result
 
@@ -202,6 +201,7 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
     )
     message = {"message": "User created Successfully",
                "username": user.username,
+               "user_id": new_user.id,
                "access_token": access_token,
                "token_type": "Bearer"}
     response.status_code = status.HTTP_200_OK
@@ -219,7 +219,6 @@ def verify_password(plain_password, hashed_password):
     # print("Encoded Plain Password:")
     # print(plain_password.encode('utf8'))
     # print(type(plain_password.encode('utf8')))
-
     return bcrypt.checkpw(plain_password.encode('utf8'), hashed_password.encode('utf8'))
 
 
@@ -263,13 +262,9 @@ def verify_username_and_goal(username: str, goal_id: int, response: Response,
     user = crud.get_user_by_username(db=db, username=username)
     goal = crud.get_goal(db=db, goal_id=goal_id)
     if not goal:
-        message = {"message": "error: goal not found"}
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return message
+        raise exceptions.NonexistentGoalException
     if goal.creator_id != user.id:
-        message = {"message": "not your goal"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.ForbiddenGoalException
 
 
 def verify_username_and_post(username: str, post_id: int, response: Response,
@@ -277,13 +272,10 @@ def verify_username_and_post(username: str, post_id: int, response: Response,
     user = crud.get_user_by_username(db=db, username=username)
     post = crud.get_post_by_id(db=db, post_id=post_id)
     if not post:
-        message = {"message": "error: post not found"}
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return message
+        raise exceptions.NonexistentForumPostException
     if post.post_author != user.id:
-        message = {"message": "not your post"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.ForbiddenForumPostException
+    return True
 
 
 @app.get("/user/me")
@@ -685,22 +677,25 @@ def send_friend_request(username: str, db: Session = Depends(get_db),
     user1 = current_user
     user2 = crud.get_user_by_username(db=db, username=username)
     if not user1 or not user2:
-        message = {"user(s) not found!"}
-        return message
+        raise exceptions.NonexistentUserException
     if user1.id == user2.id:
-        message = {"you cannot send friend requests to yourself"}
-        return message
-    if crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id):
-        message = {"you are already friends!"}
-        return message
+        raise exceptions.SelfFriendRequestException
+    friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
+    if friendship:
+        if friendship.pending:
+            raise exceptions.AlreadySentFriendRequestException
+        else:
+            raise exceptions.AlreadyFriendsException
     crud.create_friend_request(db=db, user_id1=current_user.id, user_id2=user2.id)
-    message = {"friendship created"}
+    message = {"detail": "Friend Request sent"}
     return message
+
 
 @app.get("/my_friend_requests")
 def see_friend_requests(db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
     return crud.get_friend_requests(db=db, user_id=current_user.id)
+
 
 @app.post("/accept_friend_request/{user_id}")
 def accept_friend_request(user_id: int, db: Session = Depends(get_db),
@@ -708,16 +703,14 @@ def accept_friend_request(user_id: int, db: Session = Depends(get_db),
     user1 = current_user
     user2 = crud.get_user(db=db, user_id=user_id)
     if not user1 or not user2:
-        message = {"user(s) not found!"}
-        return message
+        raise exceptions.NonexistentUserException
     friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
     if not friendship:
-        return {"friendship does not exist"}
+        raise exceptions.FriendRequestDoesNotExistException
     if not friendship.pending:
-        message = {"something is wrong..."}
-        return message
+        raise exceptions.AlreadyFriendsException
     crud.accept_friend_request(db=db, user_id1=user1.id, user_id2=user2.id)
-    message = {"friendship accepted"}
+    message = {"detail": "friendship accepted"}
     return message
 
 
@@ -727,16 +720,14 @@ def deny_friend_requesst(user_id: int, db: Session = Depends(get_db),
     user1 = current_user
     user2 = crud.get_user(db=db, user_id=user_id)
     if not user1 or not user2:
-        message = {"user(s) not found!"}
-        return message
+        raise exceptions.NonexistentUserException
     friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
     if not friendship:
-        return {"friendship does not exist"}
+        raise exceptions.FriendRequestDoesNotExistException
     if not friendship.pending:
-        message = {"hmmmmm......"}
-        return message
+        raise exceptions.AlreadyFriendsException
     crud.deny_friend_request(db=db, user_id1=user1.id, user_id2=user2.id)
-    message = {"friendship denied...."}
+    message = {"detail": "friendship denied successfully"}
     return message
 
 

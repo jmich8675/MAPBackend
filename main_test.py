@@ -117,6 +117,7 @@ def signup_user(client):
 
     assert res.json()["message"] == "User created Successfully"
     assert res.json()["username"] == "user"
+    user_data["user_id"] = res.json()["user_id"]
 
     return user_data
 
@@ -133,6 +134,7 @@ def signup_user2(client):
 
     assert res.json()["message"] == "User created Successfully"
     assert res.json()["username"] == "user2"
+    user_data["user_id"] = res.json()["user_id"]
 
     return user_data
 
@@ -472,7 +474,7 @@ class TestAchieveGoal:
         res = client.put("/achieved_goal/{goal_id}".format(goal_id=69420),
                          headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 404
-        assert res.json()["message"] == "error: goal not found"
+        assert res.json()["detail"] == "Goal could not be found"
 
     # This test is supposed to refer to a path in achieved_goal, but login methods catch it
     @pytest.mark.dependency(depends=["TestAchieveGoal::test_mark_goal_achieved"])
@@ -483,7 +485,7 @@ class TestAchieveGoal:
         res = client.put("/achieved_goal/{goal_id}".format(goal_id=create_custom_goal["goal_id"]),
                          headers={"Authorization": "Bearer " + user_data2["access_token"]})
         assert res.status_code == 403
-        assert res.json()["message"] == "not your goal"
+        assert res.json()["detail"] == "Not your goal"
 
     def test_mark_goal_achieved_unauthorized(self, client, login_user, create_custom_goal):
         user_data = login_user
@@ -566,7 +568,7 @@ class TestComment:
         res = client.post("/leave_comment/{post_id}".format(post_id=69),
                           headers={"Authorization": "Bearer " + user_data["access_token"]},
                           json=comment)
-        assert res.status_code == 400
+        assert res.status_code == 404
         assert res.json()["detail"] == "Forum post could not be found"
 
     def test_leave_comment_unauthorized(self, client, login_user, create_post):
@@ -583,17 +585,225 @@ class TestComment:
 
 
 class TestGoalsPublicPrivate:
-    def test_goal_togglepublic(self, client, login_user, create_custom_goal):
+    def test_goal_togglepublic_private_to_public(self, client, login_user, create_custom_goal):
         user_data = login_user
         # make sure new goal is not public
         res = client.get("/public_goals/{user_id}".format(user_id=create_custom_goal["creator_id"]),
-                          headers={"Authorization": "Bearer " + user_data["access_token"]})
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert len(res.json()) == 0
-
+        # toggle
         res = client.put("/togglepublic/{goal_id}".format(goal_id=create_custom_goal["goal_id"]),
                          headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.json() == "Goal now public!"
+        # check if toggle worked
         res = client.get("/public_goals/{user_id}".format(user_id=create_custom_goal["creator_id"]),
                          headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.json()[0]["goal_name"] == "Not Die"
         assert res.json()[0]["is_public"]
+
+    def test_goal_togglepublic_private_to_public_to_private(self, client, login_user, create_custom_goal):
+        user_data = login_user
+        # make sure new goal is not public
+        res = client.get("/public_goals/{user_id}".format(user_id=create_custom_goal["creator_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert len(res.json()) == 0
+        # toggle
+        res = client.put("/togglepublic/{goal_id}".format(goal_id=create_custom_goal["goal_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.json() == "Goal now public!"
+        # check if toggle worked
+        res = client.get("/public_goals/{user_id}".format(user_id=create_custom_goal["creator_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.json()[0]["goal_name"] == "Not Die"
+        assert res.json()[0]["is_public"]
+        # toggle again back to private
+        res = client.put("/togglepublic/{goal_id}".format(goal_id=create_custom_goal["goal_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.json() == "Goal now private!"
+
+    def test_goal_togglepublic_goal_with_unassociated_user(self, client, login_user, create_custom_goal, login_user2):
+        user_data = login_user
+        user2_data = login_user2
+        # make sure new goal is not public
+        res = client.get("/public_goals/{user_id}".format(user_id=create_custom_goal["creator_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert len(res.json()) == 0
+        # Attempt to get 'user' goal from 'user2'
+        res = client.put("/togglepublic/{goal_id}".format(goal_id=create_custom_goal["goal_id"]),
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 403
+        print(res.json())
+        assert res.json()["detail"] == "Not your goal"
+
+    def test_goal_togglepublic_unauthorized(self, client, login_user, create_custom_goal):
+        user_data = login_user
+        # make sure new goal is not public
+        res = client.get("/public_goals/{user_id}".format(user_id=create_custom_goal["creator_id"]),
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert len(res.json()) == 0
+        # Omit authorization headers to test
+        res = client.put("/togglepublic/{goal_id}".format(goal_id=create_custom_goal["goal_id"]))
+        # headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+
+
+class TestSendFriendRequest:
+    def test_send_friend_request(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # send friend request from user1 to user2
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.json()["detail"] == "Friend Request sent"
+
+    def test_send_friend_request_to_nonexistent_user(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # send friend request from user1 to nonexistent user 'user69'
+        res = client.post("/send_friend_request/{username}".format(username="user69"),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "User does not exist"
+
+    def test_send_friend_request_to_self(self, client, login_user):
+        user_data = login_user
+        res = client.post("/send_friend_request/{username}".format(username=user_data["username"]),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 403
+        assert res.json()["detail"] == "You cannot send friend requests to yourself"
+
+    def test_send_friend_request_duplicate(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.json()["detail"] == "Friend Request sent"
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 403
+        assert res.json()["detail"] == "You have already sent a friend request to that user"
+
+    def test_send_friend_request_already_friends(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # send friend request from user1 to user2
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.json()["detail"] == "Friend Request sent"
+        # accept friend request accept_friend_request
+        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.json()["detail"] == "friendship accepted"
+        # send friend request again
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 403
+        assert res.json()["detail"] == "You are already friends with that user"
+
+    def test_send_friend_request_unauthorized(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # send friend request from user1 to user2 unauthorized
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]))
+        # headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+
+
+class TestMyFriendRequests:
+    def test_my_friend_requests(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # make sure there are no friend requests on user2's account
+        res = client.get("/my_friend_requests",
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert len(res.json()) == 0
+        # send friend request from user1 to user2
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.json()["detail"] == "Friend Request sent"
+        # check friend requests
+        res = client.get("/my_friend_requests",
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert len(res.json()) == 1
+        assert res.json()[0] == {"username": "user", "email": "user@example.com", "id": 1}
+
+    def test_my_friend_requests_unauthorized(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # make sure there are no friend requests on user2's account
+        res = client.get("/my_friend_requests")
+        # headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+
+
+class TestAcceptFriendRequest:
+
+    def test_accept_friend_request(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # send friend request from user1 to user2
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.json()["detail"] == "Friend Request sent"
+        # accept friend request
+        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.json()["detail"] == "friendship accepted"
+
+    def test_accept_friend_request_nonexistent_user(self, client, login_user):
+        user_data = login_user
+        # try to accept friend request from nonexistent user with id=69
+        res = client.post("/accept_friend_request/{user_id}".format(user_id=69),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "User does not exist"
+
+    def test_accept_friend_request_no_request_sent(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # try to accept friend request when no friend request has been sent
+        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "Friend request does not exist"
+
+    def test_accept_friend_request_already_accepted(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # send friend request from user1 to user2
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.json()["detail"] == "Friend Request sent"
+        # accept friend request
+        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.json()["detail"] == "friendship accepted"
+        # try to accept freind request again
+        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 403
+        assert res.json()["detail"] == "You are already friends with that user"
+
+    def test_accept_friend_request_unauthorized(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # send friend request from user1 to user2
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.json()["detail"] == "Friend Request sent"
+        # try to accept friend request unauthorized
+        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]))
+        # headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+
+
+class TestDenyFriendRequest:
+    def test_deny_friend_request(self, client, login_user, login_user2):
+        return
+
+    def test_deny_friend_request(self, client, login_user, login_user2):
+        return
