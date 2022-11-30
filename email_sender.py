@@ -10,17 +10,17 @@ def sendCheckin():
         return
         
     for email in email_s:
-        sent = True
+        sent = False
         tries = 0
         while not sent:
             if tries > 5:
                 break
-            sendmail(createCheckinMessage(email))
+            sent = sendmail(createCheckinMessage(email))
             tries+=1
 
 # function to send email notification
 def sendNotification(email: str, user: str, commentuser: str, comment: str, posttitle: str):
-    sent = True
+    sent = False
     tries = 0
     while not sent:
         if tries > 5:
@@ -31,13 +31,14 @@ def sendNotification(email: str, user: str, commentuser: str, comment: str, post
 
 #function to send email Verification request
 def emailVerification(email: str, user: str, token: str):
-    sent = True
+    sent = False
     tries = 0
     while not sent:
         if tries > 5:
             break
-        sendmail(createVerificationMessage(email=email, user=user, token=token))
+        sent = sendmail(createVerificationMessage(email=email, user=user, token=token))
         tries+=1
+    return sent
 
 #emailVerification("yoloyoyoyolo12345@gmail.com", "yolo", "Howtoimprovefitness")
 

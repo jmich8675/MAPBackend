@@ -15,6 +15,7 @@ import bcrypt
 from fastapi.routing import APIRoute
 import exceptions
 from database import get_database
+from email_sender import emailVerification
 
 # DATABASE
 from fastapi import Depends, FastAPI, HTTPException
@@ -52,7 +53,7 @@ class User(BaseModel):
 SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
-
+ACCESS_TOKEN_EXPIRE_DAYS = 5
 
 class Token(BaseModel):
     access_token: str
@@ -80,6 +81,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
+        type_payload: str = payload.get("typ")
+        if type_payload is None:
+            raise credentials_exception
+        if type_payload != "auth":
+            raise credentials_exception
         if username is None:
             raise credentials_exception
         token_data = TokenData(username=username)
@@ -96,6 +102,11 @@ def verify_access_token(token: str, username: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username_payload: str = payload.get("sub")
+        type_payload: str = payload.get("typ")
+        if type_payload is None:
+            return False
+        if type_payload != "auth":
+            return False
         if username_payload is None:
             return False
         if username_payload != username:
@@ -140,6 +151,11 @@ def root():
 @measure_time
 def signup(user: User, response: Response, db: Session = Depends(get_db)):
     # print(f"signup {user.username} {user.email} {user.password}")
+    #check if valid email address
+    if not is_email(user.email):
+        message = {"message": "Please enter a valid Email"}
+        response.status_code = status.HTTP_406_NOT_ACCEPTABLE
+        return message
 
     # check the db to see if user with this email exists
     db_user = crud.get_user_by_email(db, email=user.email)
@@ -165,7 +181,7 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
     passhash = passhash.decode('utf-8')
     # print(f"{salt} {passhash}")
 
-    # make a schema
+     # make a schema
     new_user = schemas.UserCreate(email=user.email, username=user.username,
                                   pw_hash=passhash, pw_salt=salt)
     new_user = crud.create_user(db, new_user)
@@ -176,15 +192,29 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
 
-    # generate JWT token and send it as header along with the 200 ok status
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    # generate JWT token for email verification
+    access_token_expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data = {"sub": { 
+                        "user" : new_user.username, 
+                        "id": new_user.id
+                        },
+                "typ": "email_verification"
+        }, expires_delta=access_token_expires
     )
-    message = {"message": "User created Successfully",
-               "username": user.username,
-               "access_token": access_token,
-               "token_type": "Bearer"}
+    # send the email verification
+    sent = emailVerification(email=user.email, user=user.username, token=access_token)
+
+    if not sent:
+        # delete the created user
+        crud.delete_user(db=db, user_id=new_user.id)
+        message = {"message": "Error Occurred while creating the user"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message  
+
+    # if email send and user created.
+
+    message = {"message": "User created Successfully, Please verify your email"}
     response.status_code = status.HTTP_200_OK
     return message
 
@@ -211,22 +241,29 @@ def authenticate_user(db, username: str, password: str):
 @app.post("/token", response_model=Token)
 @measure_time
 def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
+  
     user = authenticate_user(db, form_data.username, form_data.password)
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # if not user.is_verified:
-    # status_code=status.HTTP_307_TEMPORARY_REDIRECT
-    # detail="Email not verified. Please verify your account in your email!"
-    # return detail
-    # TODO: uncomment to verify email,
+
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email not verified. Please verify your account in your email!",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+   
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.username,"typ": "auth"}, expires_delta=access_token_expires
     )
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 

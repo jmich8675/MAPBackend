@@ -47,7 +47,7 @@ def create_comment(db: Session, content:str, post_id: int, comment_author: int):
 
 def create_user(db: Session, user: schemas.UserCreate):
     db_user = models.User(email=user.email, username=user.username,
-                          pw_hash=user.pw_hash, pw_salt=user.pw_salt)
+                          pw_hash=user.pw_hash, pw_salt=user.pw_salt, verification_sent_date=datetime.now())
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
