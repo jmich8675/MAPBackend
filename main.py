@@ -239,6 +239,16 @@ def verify_email(q: str, response: Response, db: Session = Depends(get_db)):
         # convert string back to dict to retrieve user and user_id
         sub_payload:dict = eval(sub_payload)
         type_payload: str = payload.get("typ")
+        
+        if type_payload == None:
+            message = {"message": "Bad credentials/type"}
+            response.status_code = status.HTTP_401_UNAUTHORIZED
+            return message
+
+        if type_payload != "email_verification":
+            message = {"message": "Bad credentials/type_not_email_token"}
+            response.status_code = status.HTTP_401_UNAUTHORIZED
+            return message
 
         user: str = sub_payload.get("user")
         user_id: int = sub_payload.get("id")
