@@ -88,7 +88,7 @@ class User(UserBase):
     goals: list[Goal] = []
     templates: list[Template] = []
     is_verified: bool
-    
+    verification_sent_date: date  | None  
     ###friends: list[User] = []
 
     class Config:
@@ -102,6 +102,30 @@ class FriendCreate(FriendBase):
     pass
 
 class Friend(FriendBase):
+    pending: bool
+    class Config:
+        orm_mode = True
+
+class GroupsBase(BaseModel):
+    group_id: int
+    creator_id: int
+    group_name: str
+
+class GroupsCreate(GroupsBase):
+    pass
+
+class Groups(GroupsBase):
+    class Config:
+        orm_mode = True
+
+class GroupMembersBase(BaseModel):
+    group_id: int
+    user_id: int
+
+class GroupMembersCreate(GroupMembersBase):
+    pass
+
+class GroupMembers(GroupMembersBase):
     pending: bool
     class Config:
         orm_mode = True

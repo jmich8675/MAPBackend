@@ -10,7 +10,7 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
 import crud
-from .main import app, get_db, Base2
+from .main import app, get_db, Base2, is_running_tests
 from .main import verify_access_token
 from models import response_types
 
@@ -43,7 +43,11 @@ def client(session):
         finally:
             session.close()
 
+    def override_is_running_tests():
+        return True
+
     app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[is_running_tests] = override_is_running_tests
     yield TestClient(app)
 
 
@@ -57,7 +61,7 @@ class TestSignup:
                           })
         assert res.status_code == 200
 
-        assert res.json()["message"] == "User created Successfully"
+        assert res.json()["message"] == "User created Successfully, Please verify your email"
         assert res.json()["username"] == "user"
 
     def test_signup_duplicate_username(self, client):
@@ -69,7 +73,7 @@ class TestSignup:
                               "password": "secret"
                           })
         assert res.status_code == 200
-        assert res.json()["message"] == "User created Successfully"
+        assert res.json()["message"] == "User created Successfully, Please verify your email"
         assert res.json()["username"] == "user"
 
         # signup second user with username "user"
@@ -91,7 +95,7 @@ class TestSignup:
                               "password": "secret"
                           })
         assert res.status_code == 200
-        assert res.json()["message"] == "User created Successfully"
+        assert res.json()["message"] == "User created Successfully, Please verify your email"
         assert res.json()["username"] == "user"
 
         # signup second user with same email
@@ -115,7 +119,7 @@ def signup_user(client):
     res = client.post("/signup", json=user_data)
     assert res.status_code == 200
 
-    assert res.json()["message"] == "User created Successfully"
+    assert res.json()["message"] == "User created Successfully, Please verify your email"
     assert res.json()["username"] == "user"
     user_data["user_id"] = res.json()["user_id"]
 
@@ -132,7 +136,7 @@ def signup_user2(client):
     res = client.post("/signup", json=user_data)
     assert res.status_code == 200
 
-    assert res.json()["message"] == "User created Successfully"
+    assert res.json()["message"] == "User created Successfully, Please verify your email"
     assert res.json()["username"] == "user2"
     user_data["user_id"] = res.json()["user_id"]
 
@@ -293,10 +297,20 @@ class TestCustomGoal:
         res = client.get("/goals".format(username=user_data["username"]),
                          headers={"Authorization": "Bearer " + user_data["access_token"]}, )
         assert res.status_code == 200
-        assert res.json() == {'message': [
-            {'id': 1, 'is_paused': False, 'check_in_period': 7, 'check_in_num': 0, 'template_id': 1,
-             'can_check_in': False, 'creator_id': 1, 'goal_name': 'Not Die', 'start_date': str(date.today()),
-             'next_check_in': str(date.today() + timedelta(days=7)), 'is_public': False, 'is_achieved': False}]}
+        assert res.json() == {'message': [{'can_check_in': False,
+                                           'check_in_num': 0,
+                                           'check_in_period': 7,
+                                           'creator_id': 1,
+                                           'goal_name': 'Not Die',
+                                           'group_id': None,
+                                           'id': 1,
+                                           'is_achieved': False,
+                                           'is_group_goal': False,
+                                           'is_paused': False,
+                                           'is_public': False,
+                                           'next_check_in': '2022-12-06',
+                                           'start_date': '2022-11-29',
+                                           'template_id': 1}]}
 
     def test_create_custom_goal_invalid_template(self, client, login_user):
         user_data = login_user
@@ -632,7 +646,6 @@ class TestGoalsPublicPrivate:
         res = client.put("/togglepublic/{goal_id}".format(goal_id=create_custom_goal["goal_id"]),
                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
         assert res.status_code == 403
-        print(res.json())
         assert res.json()["detail"] == "Not your goal"
 
     def test_goal_togglepublic_unauthorized(self, client, login_user, create_custom_goal):

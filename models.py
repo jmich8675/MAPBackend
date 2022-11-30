@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Enum, DateTime, Table, UniqueConstraint
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Date, Enum, DateTime
 from sqlalchemy.orm import relationship
 import enum
 from database import Base
@@ -16,6 +16,7 @@ class User(Base):
     pw_salt = Column(String)
     email = Column(String, unique=True, index=True)
     is_verified = Column(Boolean, default=False, index=True)
+    verification_sent_date = Column(DateTime)
 
     goals = relationship("Goal", back_populates="creator")
     myposts = relationship("Post", back_populates="poster")
@@ -24,9 +25,23 @@ class User(Base):
 class Friends(Base):
     __tablename__ = "friends"
 
-    user1 = Column(Integer, ForeignKey("users.id"), index=True, primary_key=True)
-    user2 = Column(Integer, ForeignKey("users.id"), primary_key=True)
+    user1 = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, primary_key=True)
+    user2 = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     pending = Column(Boolean, default=True)
+
+class Groups(Base):
+    __tablename__ = "groups"
+
+    group_id = Column(Integer, primary_key=True, index=True)
+    creator_id = Column(Integer, ForeignKey("users.id"))
+    group_name = Column(String, index=True)
+
+class GroupMembers(Base):
+    __tablename__ = "groupMembers"
+
+    group_id = Column(Integer, ForeignKey("groups.group_id", ondelete="CASCADE"), index=True, primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), index=True, primary_key=True)
+    pending = Column(Boolean, index=True, default=True)
 
 class Goal(Base):
     __tablename__ = "goals"
@@ -43,6 +58,8 @@ class Goal(Base):
     template_id = Column(Integer, index=True)
     is_achieved = Column(Boolean, default=False)
     can_check_in = Column(Boolean, default=False)
+    is_group_goal = Column(Boolean, default=False)
+    group_id = Column(Integer, ForeignKey("groups.group_id", ondelete="CASCADE"), nullable=True)
 
     creator = relationship("User", back_populates="goals")
     answers = relationship("Response", back_populates="goal", cascade="all, delete", passive_deletes=True)
@@ -104,3 +121,4 @@ class Comment(Base):
     timestamp = Column(DateTime, index=True)
     post_id = Column(Integer, ForeignKey("posts.post_id", ondelete="CASCADE"))
     comment_author = Column(Integer, ForeignKey("users.id"))
+

@@ -1,6 +1,5 @@
+from utiltity import measure_time, is_email
 from typing import Union
-from functools import wraps
-from time import perf_counter
 from fastapi import FastAPI, Response, status, Request
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from pydantic import BaseModel
@@ -16,6 +15,7 @@ import bcrypt
 from fastapi.routing import APIRoute
 import exceptions
 from database import get_database
+from email_sender import emailVerification
 
 # DATABASE
 from fastapi import Depends, FastAPI, HTTPException
@@ -32,25 +32,11 @@ def get_db():
     return next(get_database())
 
 
+def is_running_tests():
+    return False
+
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
-
-
-def measure_time(func):
-    """decorator to measure time for function execution"""
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        start_time = perf_counter()
-
-        result = func(*args, **kwargs)
-
-        delta = round(perf_counter() - start_time, 5)
-
-        print(f"\033[48;5;4m{func.__name__} : {delta * 1000} ms\033[0m")
-
-        return result
-
-    return wrapper
 
 
 class TokenData(BaseModel):
@@ -70,6 +56,7 @@ class User(BaseModel):
 SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
+ACCESS_TOKEN_EXPIRE_DAYS = 5
 
 
 class Token(BaseModel):
@@ -98,6 +85,11 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username: str = payload.get("sub")
+        type_payload: str = payload.get("typ")
+        if type_payload is None:
+            raise credentials_exception
+        if type_payload != "auth":
+            raise credentials_exception
         if username is None:
             raise credentials_exception
         token_data = TokenData(username=username)
@@ -114,6 +106,11 @@ def verify_access_token(token: str, username: str):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         username_payload: str = payload.get("sub")
+        type_payload: str = payload.get("typ")
+        if type_payload is None:
+            return False
+        if type_payload != "auth":
+            return False
         if username_payload is None:
             return False
         if username_payload != username:
@@ -156,8 +153,14 @@ def root():
 # trying post request
 @app.post("/signup")
 @measure_time
-def signup(user: User, response: Response, db: Session = Depends(get_db)):
+def signup(user: User, response: Response, db: Session = Depends(get_db),
+           skip_for_testing: bool = Depends(is_running_tests)):
     # print(f"signup {user.username} {user.email} {user.password}")
+    # check if valid email address
+    if not is_email(user.email):
+        message = {"message": "Please enter a valid Email"}
+        response.status_code = status.HTTP_406_NOT_ACCEPTABLE
+        return message
 
     # check the db to see if user with this email exists
     db_user = crud.get_user_by_email(db, email=user.email)
@@ -194,31 +197,39 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
 
-    # generate JWT token and send it as header along with the 200 ok status
-    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    # generate JWT token for email verification
+    access_token_expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": {
+            "user": new_user.username,
+            "id": new_user.id
+        },
+            "typ": "email_verification"
+        }, expires_delta=access_token_expires
     )
-    message = {"message": "User created Successfully",
-               "username": user.username,
-               "user_id": new_user.id,
-               "access_token": access_token,
-               "token_type": "Bearer"}
+    if skip_for_testing or len(new_user.username) == 1:
+        crud.change_verified_status(db=db, user_id=new_user.id, is_verified=True)
+    else:
+        # send the email verification
+        sent = emailVerification(email=user.email, user=user.username, token=access_token)
+
+        if not sent:
+            # delete the created user
+            crud.delete_user(db=db, user_id=new_user.id)
+            message = {"message": "Error Occurred while creating the user"}
+            response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            return message
+
+    # if email send and user created.
+
+    message = {"message": "User created Successfully, Please verify your email",
+               "username": new_user.username,
+               "user_id": new_user.id}
     response.status_code = status.HTTP_200_OK
     return message
 
 
 def verify_password(plain_password, hashed_password):
-    # print("Plain Password:")
-    # print(plain_password)
-    # print(type(plain_password))
-    # print("Hashed Password:")
-    # print(hashed_password)
-    # print(type(hashed_password))
-    #
-    # print("Encoded Plain Password:")
-    # print(plain_password.encode('utf8'))
-    # print(type(plain_password.encode('utf8')))
     return bcrypt.checkpw(plain_password.encode('utf8'), hashed_password.encode('utf8'))
 
 
@@ -237,23 +248,30 @@ def authenticate_user(db, username: str, password: str):
 
 # this function used to be async
 @app.post("/token", response_model=Token)
+@measure_time
 def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
     user = authenticate_user(db, form_data.username, form_data.password)
+
     if not user:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect username or password",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    # if not user.is_verified:
-    # status_code=status.HTTP_307_TEMPORARY_REDIRECT
-    # detail="Email not verified. Please verify your account in your email!"
-    # return detail
-    # TODO: uncomment to verify email,
+
+    if not user.is_verified:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Email not verified. Please verify your account in your email!",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+
     access_token = create_access_token(
-        data={"sub": user.username}, expires_delta=access_token_expires
+        data={"sub": user.username, "typ": "auth"}, expires_delta=access_token_expires
     )
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 
@@ -279,11 +297,13 @@ def verify_username_and_post(username: str, post_id: int, response: Response,
 
 
 @app.get("/user/me")
+@measure_time
 def home(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return {"username": current_user.username}
 
 
 @app.get("/goals")
+@measure_time
 def home(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return {"message": crud.get_unachieved_goals(db=db, username=current_user.username)}
 
@@ -301,6 +321,7 @@ class BigGoal(BaseModel):
 
 
 @app.post("/create_specific_goal")
+@measure_time
 def create_specific_goal(goaljson: BigGoal, response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     user = crud.get_user_by_username(db=db, username=current_user.username)
@@ -340,6 +361,7 @@ class BigCustomGoal(BaseModel):
 
 
 @app.post("/create_custom_goal")
+@measure_time
 def create_custom_goal(goaljson: BigCustomGoal,
                        response: Response, db: Session = Depends(get_db),
                        current_user: models.User = Depends(get_current_user)):
@@ -378,6 +400,7 @@ def create_custom_goal(goaljson: BigCustomGoal,
 
 
 @app.post("/create_template")
+@measure_time
 def create_template(template: schemas.TemplateCreate,
                     response: Response, db: Session = Depends(get_db),
                     current_user: models.User = Depends(get_current_user)):
@@ -401,6 +424,7 @@ class GoalInfo(BaseModel):
 
 
 @app.get("/progress/{goal_id}")
+@measure_time
 def view_goal_progress(goal_id: int, response: Response, db: Session = Depends(get_db),
                        current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=goal_id)
@@ -424,6 +448,7 @@ def view_goal_progress(goal_id: int, response: Response, db: Session = Depends(g
 
 
 @app.get("/templates", response_model=list[schemas.Template])
+@measure_time
 def view_premade_templates(db: Session = Depends(get_db), skip: int = 0, limit: int = 100,
                            current_user: models.User = Depends(get_current_user)):
     return crud.get_premade_templates(db=db, skip=skip, limit=limit)
@@ -437,6 +462,7 @@ class PastWriting(BaseModel):
 
 # might be unsecure
 @app.get("/responses/{goal_id}")
+@measure_time
 def view_responses(goal_id: int, response: Response, db: Session = Depends(get_db),
                    current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -461,6 +487,7 @@ def view_responses(goal_id: int, response: Response, db: Session = Depends(get_d
 
 # might be unsecure
 @app.post("/create_response")
+@measure_time
 def create_response(resp: schemas.ResponseCreate, response: Response,
                     db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     goal = crud.get_goal(db=db, goal_id=resp.goal_id)
@@ -474,6 +501,7 @@ def create_response(resp: schemas.ResponseCreate, response: Response,
 
 
 @app.put("/achieved_goal/{goal_id}")
+@measure_time
 def achieved_goal(goal_id: int, response: Response, db: Session = Depends(get_db),
                   current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -496,6 +524,7 @@ def achieved_goal(goal_id: int, response: Response, db: Session = Depends(get_db
 
 
 @app.delete("/delete_goal/{goal_id}")
+@measure_time
 def delete_goal(goal_id: int, response: Response, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -522,6 +551,7 @@ class CheckInPeriod(BaseModel):
 
 
 @app.put("/edit_check_in_period/{goal_id}")
+@measure_time
 def edit_check_in_period(goal_id: int, check_in_period: CheckInPeriod,
                          response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
@@ -545,6 +575,7 @@ def edit_check_in_period(goal_id: int, check_in_period: CheckInPeriod,
 
 
 @app.put("/update_database")
+@measure_time
 def update_database(response: Response, db: Session = Depends(get_db),
                     current_user: models.User = Depends(get_current_user)):
     crud.update_can_check_in(db=db)
@@ -554,6 +585,7 @@ def update_database(response: Response, db: Session = Depends(get_db),
 
 
 @app.get("/list_check_in_questions/{goal_id}")
+@measure_time
 def list_check_in_questions(goal_id: int, response: Response, db: Session = Depends(get_db),
                             current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -567,6 +599,7 @@ class CheckInAnswers(BaseModel):
 
 
 @app.post("/check_in/{goal_id}")
+@measure_time
 def check_in(goal_id: int, check_in_answers: CheckInAnswers,
              response: Response, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -587,6 +620,7 @@ def check_in(goal_id: int, check_in_answers: CheckInAnswers,
 
 
 @app.put("/togglepause/{goal_id}")
+@measure_time
 def togglepause(goal_id: int, response: Response, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
@@ -597,6 +631,7 @@ def togglepause(goal_id: int, response: Response, db: Session = Depends(get_db),
 
 
 @app.get("/achieved_goals")
+@measure_time
 def achieved_goals(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_achieved_goals(username=current_user.username, db=db)
 
@@ -607,6 +642,7 @@ class PostInfo(BaseModel):
 
 
 @app.post("/create_post")
+@measure_time
 def create_post(postjson: PostInfo, response: Response, db: Session = Depends(get_db),
                 current_user: models.User = Depends(get_current_user)):
     post = crud.create_post(db=db, title=postjson.title, content=postjson.content, post_author=current_user.id)
@@ -617,6 +653,7 @@ def create_post(postjson: PostInfo, response: Response, db: Session = Depends(ge
 
 
 @app.get("/see_posts", response_model=list[schemas.Post])
+@measure_time
 def get_posts(db: Session = Depends(get_db), skip: int = 0, limit: int = 100,
               current_user: models.User = Depends(get_current_user)):
     return crud.get_feed(db=db, skip=skip, limit=limit)
@@ -627,6 +664,7 @@ class EditPost(BaseModel):
 
 
 @app.put("/edit_post/{post_id}")
+@measure_time
 def edit_post(post_id: int, editjson: EditPost,
               response: Response, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     verify_username_and_post(username=current_user.username, post_id=post_id,
@@ -647,6 +685,7 @@ class Commment(BaseModel):
 
 
 @app.post("/leave_comment/{post_id}")
+@measure_time
 def leave_comment(post_id: int, comment: Commment, db: Session = Depends(get_db),
                   current_user: models.User = Depends(get_current_user)):
     if not current_user:
@@ -660,10 +699,31 @@ def leave_comment(post_id: int, comment: Commment, db: Session = Depends(get_db)
     return message
 
 
+class comments_with_author(BaseModel):
+    comment_id: int
+    content: str
+    timestamp: datetime
+    post_id: int
+    comment_author: int
+    author_username: str
+
+
 @app.get("/comments/{post_id}")
+@measure_time
 def see_comments(post_id: int, db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
-    return crud.get_comments_by_post(db=db, post_id=post_id)
+    real_comments = []
+    comments = crud.get_comments_by_post(db=db, post_id=post_id)
+    for i in range(len(comments)):
+        real_comments.append(comments_with_author(
+            comment_id=comments[i].comment_id,
+            content=comments[i].content,
+            timestamp=comments[i].timestamp,
+            post_id=comments[i].post_id,
+            comment_author=comments[i].comment_author,
+            author_username=crud.get_user(db=db, user_id=comments[i].comment_author).username
+        ))
+    return real_comments
 
 
 class Peers(BaseModel):
@@ -672,7 +732,8 @@ class Peers(BaseModel):
 
 
 @app.post("/send_friend_request/{username}")
-def send_friend_request(username: str, db: Session = Depends(get_db),
+@measure_time
+def send_friend_request(username: str, response: Response, db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
     user1 = current_user
     user2 = crud.get_user_by_username(db=db, username=username)
@@ -692,13 +753,14 @@ def send_friend_request(username: str, db: Session = Depends(get_db),
 
 
 @app.get("/my_friend_requests")
+@measure_time
 def see_friend_requests(db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
     return crud.get_friend_requests(db=db, user_id=current_user.id)
 
 
 @app.post("/accept_friend_request/{user_id}")
-def accept_friend_request(user_id: int, db: Session = Depends(get_db),
+def accept_friend_request(user_id: int, response: Response, db: Session = Depends(get_db),
                           current_user: models.User = Depends(get_current_user)):
     user1 = current_user
     user2 = crud.get_user(db=db, user_id=user_id)
@@ -715,7 +777,8 @@ def accept_friend_request(user_id: int, db: Session = Depends(get_db),
 
 
 @app.post("/deny_friend_request/{user_id}")
-def deny_friend_requesst(user_id: int, db: Session = Depends(get_db),
+@measure_time
+def deny_friend_requesst(user_id: int, response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     user1 = current_user
     user2 = crud.get_user(db=db, user_id=user_id)
@@ -724,6 +787,7 @@ def deny_friend_requesst(user_id: int, db: Session = Depends(get_db),
     friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
     if not friendship:
         raise exceptions.FriendRequestDoesNotExistException
+
     if not friendship.pending:
         raise exceptions.AlreadyFriendsException
     crud.deny_friend_request(db=db, user_id1=user1.id, user_id2=user2.id)
@@ -732,6 +796,7 @@ def deny_friend_requesst(user_id: int, db: Session = Depends(get_db),
 
 
 @app.get("/friends")
+@measure_time
 def my_friends(db: Session = Depends(get_db), current_user: models.User = Depends(get_current_user)):
     return crud.get_users_friends(db=db, user_id=current_user.id)
 
@@ -742,7 +807,56 @@ def public_goals(user_id: int, db: Session = Depends(get_db)):
 
 
 @app.put("/togglepublic/{goal_id}")
+@measure_time
 def togglepublic(goal_id: int, response: Response, db: Session = Depends(get_db),
                  current_user: models.User = Depends(get_current_user)):
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
     return crud.toggle_public_private(db=db, goal_id=goal_id)
+
+
+# SETTINGS
+
+class NewEmail(BaseModel):
+    email: str
+
+
+@app.put("/change_email_address")
+def change_email_address(emailjson: NewEmail, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(get_current_user)):
+    crud.update_email_address(user_id=current_user.id, email=emailjson.email, db=db)
+    message = {"email updated"}
+    return message
+
+
+class NewUsername(BaseModel):
+    username: str
+
+
+@app.put("/change_username")
+def change_username(json: NewUsername, db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_user)):
+    crud.update_username(user_id=current_user.id, username=json.username, db=db)
+    message = {"username updated"}
+    return message
+    # make sure to logout
+
+
+class NewPassword(BaseModel):
+    repw: str
+    newpw: str
+
+
+@app.put("/change_password")
+def change_password(pwjson: NewPassword, response: Response, db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_user)):
+    if not verify_password(pwjson.repw, current_user.pw_hash):
+        message = {"passwords do not match!"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return message
+    salt = bcrypt.gensalt(12)
+    passhash = bcrypt.hashpw(pwjson.newpw.encode('utf-8'), salt)
+    salt = salt.decode('utf-8')
+    passhash = passhash.decode('utf-8')
+    crud.update_password(user_id=current_user.id, newhash=passhash, newsalt=salt, db=db)
+    message = {"password updated"}
+    return message
