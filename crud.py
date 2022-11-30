@@ -55,8 +55,8 @@ def create_user(db: Session, user: schemas.UserCreate):
 
 def create_goal(db: Session, goal_name: str, check_in_period: int,
                          template_id: int, user_id: int):
-    db_goal = models.Goal(goal_name=goal_name, template_id=template_id, creator_id=user_id, 
-                          start_date=date.today(), check_in_num=0, 
+    db_goal = models.Goal(goal_name=goal_name, template_id=template_id, creator_id=user_id,
+                          start_date=date.today(), check_in_num=0,
                           check_in_period=check_in_period,
                           next_check_in=date.today() + timedelta(days=check_in_period))
     db.add(db_goal)
@@ -157,9 +157,9 @@ def get_unachieved_goals(username: str, db: Session):
 
 def get_template(db: Session, template_id: int):
     return db.query(models.Template).filter(models.Template.template_id == template_id).first()
-    
+
 def get_premade_templates(db: Session, skip: int = 0, limit: int = 100):
-    return db.query(models.Template).filter(models.Template.is_custom == False).offset(skip).limit(limit).all()       
+    return db.query(models.Template).filter(models.Template.is_custom == False).offset(skip).limit(limit).all()
 
 ### GET COMMENTS
 
@@ -199,7 +199,7 @@ def get_question(db: Session, question_id: int):
 def get_check_in_questions(db: Session, this_check_in: int, this_template: int):
     return db.query(models.Question) \
         .filter(models.Question.template_id == this_template) \
-        .filter(or_(models.Question.check_in_num == -1, models.Question.check_in_num == this_check_in)).all()    
+        .filter(or_(models.Question.check_in_num == -1, models.Question.check_in_num == this_check_in)).all()
 
 ### GET RESPONSES
 
@@ -212,8 +212,13 @@ def get_responses_by_question(db: Session, question_id: int):
 ### GET FRIENDS
 
 def get_friendship(db: Session, user_id1: int, user_id2: int):
-    return db.query(models.Friends) \
+    friendship = db.query(models.Friends) \
         .filter(and_(models.Friends.user1==user_id2, models.Friends.user2==user_id1)).first()
+    if not friendship:
+        friendship = db.query(models.Friends) \
+            .filter(and_(models.Friends.user1==user_id1, models.Friends.user2==user_id2)).first()
+    return friendship
+
 
 def accept_friend_request(db: Session, user_id1: int, user_id2: int):
     friendship = get_friendship(db=db, user_id1=user_id1, user_id2=user_id2)
@@ -227,7 +232,7 @@ def deny_friend_request(db: Session, user_id1: int, user_id2: int):
     db.delete(friendship)
     db.commit()
     return "friendship ended"
-    
+
 def get_users_friends(db: Session, user_id: int):
     friends = []
     for friend in db.query(models.Friends).filter(models.Friends.user1==user_id) \
@@ -378,7 +383,7 @@ def toggle_goal_paused(db: Session, goal_id: int):
             db.refresh(goal)
             return "Goal Paused"
     else:
-        return "Goal not found"    
+        return "Goal not found"
 
 def toggle_public_private(db: Session, goal_id: int):
     goal = get_goal(db, goal_id)
@@ -389,12 +394,12 @@ def toggle_public_private(db: Session, goal_id: int):
             db.refresh(goal)
             return "Goal now private!"
         else:
-            goal.is_public = True  
+            goal.is_public = True
             db.commit()
             db.refresh(goal)
             return "Goal now public!"
     else:
-        return "Goal not found"        
+        return "Goal not found"
 
 def change_verified_status(db: Session, user_id: int, is_verified: bool):
     user = get_user(db, user_id)
@@ -424,13 +429,13 @@ def after_check_in_update(goal_id: int, db: Session):
     goal = get_goal(db=db, goal_id=goal_id)
     db.query(models.Goal).filter(models.Goal.id == goal_id) \
         .update({'next_check_in': date.today() + timedelta(days=goal.check_in_period)}) \
-    
+
     db.query(models.Goal).filter(models.Goal.id == goal_id) \
         .update({'check_in_num': models.Goal.check_in_num + 1})
-    
+
     db.query(models.Goal).filter(models.Goal.id == goal_id) \
         .update({'can_check_in': False})
-    
+
     db.commit()
     return
 
@@ -483,7 +488,7 @@ def delete_comment(db: Session, comment_id: int):
         db.commit()
         return True
     else:
-        return False 
+        return False
 
 def delete_post(db: Session, post_id: int):
     deleted=db.query(models.Post).filter(models.Post.post_id == post_id).delete(synchronize_session="fetch")

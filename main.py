@@ -23,7 +23,6 @@ from sqlalchemy.orm import Session
 import crud, models, schemas
 from database import engine
 
-
 models.Base.metadata.create_all(bind=engine)
 
 Base2 = models.Base
@@ -31,6 +30,10 @@ Base2 = models.Base
 
 def get_db():
     return next(get_database())
+
+
+def is_running_tests():
+    return False
 
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
@@ -54,6 +57,7 @@ SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 60
 ACCESS_TOKEN_EXPIRE_DAYS = 5
+
 
 class Token(BaseModel):
     access_token: str
@@ -149,9 +153,10 @@ def root():
 # trying post request
 @app.post("/signup")
 @measure_time
-def signup(user: User, response: Response, db: Session = Depends(get_db)):
+def signup(user: User, response: Response, db: Session = Depends(get_db),
+           skip_for_testing: bool = Depends(is_running_tests)):
     # print(f"signup {user.username} {user.email} {user.password}")
-    #check if valid email address
+    # check if valid email address
     if not is_email(user.email):
         message = {"message": "Please enter a valid Email"}
         response.status_code = status.HTTP_406_NOT_ACCEPTABLE
@@ -181,7 +186,7 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
     passhash = passhash.decode('utf-8')
     # print(f"{salt} {passhash}")
 
-     # make a schema
+    # make a schema
     new_user = schemas.UserCreate(email=user.email, username=user.username,
                                   pw_hash=passhash, pw_salt=salt)
     new_user = crud.create_user(db, new_user)
@@ -204,19 +209,24 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
         }
         , expires_delta=access_token_expires
     )
-    # send the email verification
-    sent = emailVerification(email=user.email, user=user.username, token=access_token)
+    if skip_for_testing or len(new_user.username) == 1:
+        crud.change_verified_status(db=db, user_id=new_user.id, is_verified=True)
+    else:
+        # send the email verification
+        sent = emailVerification(email=user.email, user=user.username, token=access_token)
 
-    if not sent:
-        # delete the created user
-        crud.delete_user(db=db, user_id=new_user.id)
-        message = {"message": "Error Occurred while creating the user"}
-        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
-        return message  
+        if not sent:
+            # delete the created user
+            crud.delete_user(db=db, user_id=new_user.id)
+            message = {"message": "Error Occurred while creating the user"}
+            response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            return message
 
     # if email send and user created.
 
-    message = {"message": "User created Successfully, Please verify your email"}
+    message = {"message": "User created Successfully, Please verify your email",
+               "username": new_user.username,
+               "user_id": new_user.id}
     response.status_code = status.HTTP_200_OK
     return message
 
@@ -283,7 +293,6 @@ def authenticate_user(db, username: str, password: str):
 @app.post("/token", response_model=Token)
 @measure_time
 def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()):
-  
     user = authenticate_user(db, form_data.username, form_data.password)
 
     if not user:
@@ -301,9 +310,9 @@ def login_for_access_token(db: Session = Depends(get_db), form_data: OAuth2Passw
         )
 
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-   
+
     access_token = create_access_token(
-        data={"sub": user.username,"typ": "auth"}, expires_delta=access_token_expires
+        data={"sub": user.username, "typ": "auth"}, expires_delta=access_token_expires
     )
 
     return {"access_token": access_token, "token_type": "bearer"}
@@ -314,13 +323,9 @@ def verify_username_and_goal(username: str, goal_id: int, response: Response,
     user = crud.get_user_by_username(db=db, username=username)
     goal = crud.get_goal(db=db, goal_id=goal_id)
     if not goal:
-        message = {"message": "error: goal not found"}
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return message
+        raise exceptions.NonexistentGoalException
     if goal.creator_id != user.id:
-        message = {"message": "not your goal"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.ForbiddenGoalException
 
 
 def verify_username_and_post(username: str, post_id: int, response: Response,
@@ -328,13 +333,10 @@ def verify_username_and_post(username: str, post_id: int, response: Response,
     user = crud.get_user_by_username(db=db, username=username)
     post = crud.get_post_by_id(db=db, post_id=post_id)
     if not post:
-        message = {"message": "error: post not found"}
-        response.status_code = status.HTTP_404_NOT_FOUND
-        return message
+        raise exceptions.NonexistentForumPostException
     if post.post_author != user.id:
-        message = {"message": "not your post"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.ForbiddenForumPostException
+    return True
 
 
 @app.get("/user/me")
@@ -739,6 +741,7 @@ def leave_comment(post_id: int, comment: Commment, db: Session = Depends(get_db)
                "comment_id": comment.comment_id}
     return message
 
+
 class comments_with_author(BaseModel):
     comment_id: int
     content: str
@@ -746,6 +749,7 @@ class comments_with_author(BaseModel):
     post_id: int
     comment_author: int
     author_username: str
+
 
 @app.get("/comments/{post_id}")
 @measure_time
@@ -755,14 +759,15 @@ def see_comments(post_id: int, db: Session = Depends(get_db),
     comments = crud.get_comments_by_post(db=db, post_id=post_id)
     for i in range(len(comments)):
         real_comments.append(comments_with_author(
-            comment_id = comments[i].comment_id,
+            comment_id=comments[i].comment_id,
             content=comments[i].content,
             timestamp=comments[i].timestamp,
             post_id=comments[i].post_id,
             comment_author=comments[i].comment_author,
-            author_username=crud.get_user(db=db, user_id=comments[i].comment_author).username   
+            author_username=crud.get_user(db=db, user_id=comments[i].comment_author).username
         ))
     return real_comments
+
 
 class Peers(BaseModel):
     user_id1: int
@@ -776,20 +781,19 @@ def send_friend_request(username: str, response: Response, db: Session = Depends
     user1 = current_user
     user2 = crud.get_user_by_username(db=db, username=username)
     if not user1 or not user2:
-        message = {"user(s) not found!"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.NonexistentUserException
     if user1.id == user2.id:
-        message = {"you cannot send friend requests to yourself"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
-    if crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id):
-        message = {"you are already friends!"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.SelfFriendRequestException
+    friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
+    if friendship:
+        if friendship.pending:
+            raise exceptions.AlreadySentFriendRequestException
+        else:
+            raise exceptions.AlreadyFriendsException
     crud.create_friend_request(db=db, user_id1=current_user.id, user_id2=user2.id)
-    message = {"friendship created"}
+    message = {"detail": "Friend Request sent"}
     return message
+
 
 @app.get("/my_friend_requests")
 @measure_time
@@ -797,48 +801,40 @@ def see_friend_requests(db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
     return crud.get_friend_requests(db=db, user_id=current_user.id)
 
-@app.post("/accept_friend_request/{user_id}")
-def accept_friend_request(user_id: int, response: Response, db: Session = Depends(get_db),
+
+@app.post("/accept_friend_request/{username}")
+def accept_friend_request(username: str, response: Response, db: Session = Depends(get_db),
                           current_user: models.User = Depends(get_current_user)):
     user1 = current_user
-    user2 = crud.get_user(db=db, user_id=user_id)
+    user2 = crud.get_user_by_username(db=db, username=username)
     if not user1 or not user2:
-        message = {"user(s) not found!"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.NonexistentUserException
     friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
     if not friendship:
-        message = {"friendship does not exist"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.FriendRequestDoesNotExistException
     if not friendship.pending:
-        message = {"something is wrong..."}
-        return message
+        raise exceptions.AlreadyFriendsException
     crud.accept_friend_request(db=db, user_id1=user1.id, user_id2=user2.id)
-    message = {"friendship accepted"}
+    message = {"detail": "friendship accepted"}
     return message
 
 
-@app.post("/deny_friend_request/{user_id}")
+@app.post("/deny_friend_request/{username}")
 @measure_time
-def deny_friend_requesst(user_id: int, response: Response, db: Session = Depends(get_db),
+def deny_friend_requesst(username: str, response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     user1 = current_user
-    user2 = crud.get_user(db=db, user_id=user_id)
+    user2 = crud.get_user_by_username(db=db, username=username)
     if not user1 or not user2:
-        message = {"user(s) not found!"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.NonexistentUserException
     friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
     if not friendship:
-        message = {"friendship does not exist"}
-        response.status_code = status.HTTP_403_FORBIDDEN
-        return message
+        raise exceptions.FriendRequestDoesNotExistException
+
     if not friendship.pending:
-        message = {"hmmmmm......"}
-        return message
+        raise exceptions.AlreadyFriendsException
     crud.deny_friend_request(db=db, user_id1=user1.id, user_id2=user2.id)
-    message = {"friendship denied...."}
+    message = {"detail": "friendship denied successfully"}
     return message
 
 
@@ -860,10 +856,12 @@ def togglepublic(goal_id: int, response: Response, db: Session = Depends(get_db)
     verify_username_and_goal(username=current_user.username, goal_id=goal_id, db=db, response=response)
     return crud.toggle_public_private(db=db, goal_id=goal_id)
 
+
 # SETTINGS
 
 class NewEmail(BaseModel):
-    email:str
+    email: str
+
 
 @app.put("/change_email_address")
 def change_email_address(emailjson: NewEmail, db: Session = Depends(get_db),
@@ -872,8 +870,10 @@ def change_email_address(emailjson: NewEmail, db: Session = Depends(get_db),
     message = {"email updated"}
     return message
 
+
 class NewUsername(BaseModel):
     username: str
+
 
 @app.put("/change_username")
 def change_username(json: NewUsername, db: Session = Depends(get_db),
@@ -881,7 +881,8 @@ def change_username(json: NewUsername, db: Session = Depends(get_db),
     crud.update_username(user_id=current_user.id, username=json.username, db=db)
     message = {"username updated"}
     return message
-    #make sure to logout
+    # make sure to logout
+
 
 class NewPassword(BaseModel):
     repw: str
