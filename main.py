@@ -194,13 +194,15 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
 
     # generate JWT token for email verification
     access_token_expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
+    #sub has to be string
     access_token = create_access_token(
-        data = {"sub": { 
+        data = {"sub": str({ 
                         "user" : new_user.username, 
                         "id": new_user.id
-                        },
-                "typ": "email_verification"
-        }, expires_delta=access_token_expires
+        }),
+        "typ": "email_verification"
+        }
+        , expires_delta=access_token_expires
     )
     # send the email verification
     sent = emailVerification(email=user.email, user=user.username, token=access_token)
@@ -217,6 +219,46 @@ def signup(user: User, response: Response, db: Session = Depends(get_db)):
     message = {"message": "User created Successfully, Please verify your email"}
     response.status_code = status.HTTP_200_OK
     return message
+
+@app.get("/verify_email/")
+@measure_time
+def verify_email(q: str, response: Response, db: Session = Depends(get_db)):
+    try:
+        payload = jwt.decode(token=q, key=SECRET_KEY, algorithms=[ALGORITHM])
+        sub_payload:str = payload.get("sub")
+        # convert string back to dict to retrieve user and user_id
+        sub_payload:dict = eval(sub_payload)
+        type_payload: str = payload.get("typ")
+
+        user: str = sub_payload.get("user")
+        user_id: int = sub_payload.get("id")
+        
+        db_user = crud.get_user(db, user_id)
+
+        if not db_user:
+            message = {"message": "Bad credentials/user"}
+            response.status_code = status.HTTP_401_UNAUTHORIZED
+            return message
+        
+        if db_user.username != user:
+            message = {"message": "Bad credentials/username"}
+            response.status_code = status.HTTP_401_UNAUTHORIZED
+            return message
+        
+        if not crud.update_user_verification(db, db_user.id):
+            message = {"message": "Error updating verification"}
+            response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            return message
+        
+        message = {"message": "Succesfully verified your Email"}
+        response.status_code = status.HTTP_200_OK
+        return message
+        
+    except JWTError:
+        message = {"message": "Bad credentials/tokendecode"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return message
+    
 
 
 def verify_password(plain_password, hashed_password):

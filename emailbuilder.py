@@ -118,7 +118,7 @@ def createNotificationMessage(email: str, user: str, commentuser: str, comment: 
     return msg
 
 def createVerificationMessage(email: str, user: str, token: str):
-    url = f"http:localhost:3000/verify_email/q={token}"
+    url = f"http://localhost:3000/verify_email/{token}"
     msg = EmailMessage()
     msg['Subject'] = "MAP: Email Verification"
     msg['From'] = formataddr(("MAPS", "yoloyoyoyolo12345@gmail.com"))

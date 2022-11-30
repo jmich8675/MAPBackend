@@ -292,6 +292,14 @@ def get_pending_invites(db: Session, group_id: int):
                         ### CR(U)D UPDATE METHODS ###
 
 ###############################################################################
+def update_user_verification(db: Session, user_id: int):
+    user = get_user(db, user_id)
+    if user:
+        user.is_verified = True
+        db.commit()
+        db.refresh(user)
+        return True
+    return False
 
 def update_recent_timestamp (db: Session, post_id: int, timestamp: datetime):
     post = get_post_by_id(db, post_id)
