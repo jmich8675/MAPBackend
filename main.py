@@ -255,6 +255,11 @@ def verify_email(q: str, response: Response, db: Session = Depends(get_db)):
             response.status_code = status.HTTP_401_UNAUTHORIZED
             return message
         
+        if db_user.is_verified:
+            message = {"message": "User Email already verified"}
+            response.status_code = status.HTTP_200_OK
+            return message
+        
         if not crud.update_user_verification(db, db_user.id):
             message = {"message": "Error updating verification"}
             response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR

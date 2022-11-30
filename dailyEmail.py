@@ -1,4 +1,6 @@
-# Run this at specific time everyday
+'''
+Run this at specific time everyday
+'''
 
 from email_sender import sendCheckin
 

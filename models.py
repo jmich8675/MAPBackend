@@ -16,7 +16,7 @@ class User(Base):
     pw_salt = Column(String)
     email = Column(String, unique=True, index=True)
     is_verified = Column(Boolean, default=False, index=True)
-    verification_sent_date = Column(DateTime)
+    verification_sent_date = Column(Date)
 
     goals = relationship("Goal", back_populates="creator")
     myposts = relationship("Post", back_populates="poster")

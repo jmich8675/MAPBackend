@@ -47,7 +47,7 @@ def create_comment(db: Session, content:str, post_id: int, comment_author: int):
 
 def create_user(db: Session, user: schemas.UserCreate):
     db_user = models.User(email=user.email, username=user.username,
-                          pw_hash=user.pw_hash, pw_salt=user.pw_salt, verification_sent_date=datetime.now())
+                          pw_hash=user.pw_hash, pw_salt=user.pw_salt, verification_sent_date=date.today())
     db.add(db_user)
     db.commit()
     db.refresh(db_user)
@@ -130,6 +130,10 @@ def get_public_goals(db: Session, user_id: int):
     return db.query(models.Goal) \
         .filter(models.Goal.creator_id==user_id) \
         .filter(models.Goal.is_public==True).all()
+
+def get_not_verified_users(db: Session):
+    return db.query(models.User).filter(models.User.is_verified == False).all()
+
 
 ### GET GOALS
 
@@ -497,3 +501,9 @@ def delete_post(db: Session, post_id: int):
         return True
     else:
         return False
+
+def delete_not_verified_users(db: Session):
+    users = get_not_verified_users(db)
+    for user in users:
+        if ((date.today() - user.verification_sent_date) > timedelta(days=5)):
+            delete_user(db, user.id)
