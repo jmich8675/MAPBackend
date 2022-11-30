@@ -705,7 +705,7 @@ class TestSendFriendRequest:
                           headers={"Authorization": "Bearer " + user1_data["access_token"]})
         assert res.json()["detail"] == "Friend Request sent"
         # accept friend request accept_friend_request
-        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+        res = client.post("/accept_friend_request/{username}".format(username=user1_data["username"]),
                           headers={"Authorization": "Bearer " + user2_data["access_token"]})
         assert res.json()["detail"] == "friendship accepted"
         # send friend request again
@@ -762,14 +762,14 @@ class TestAcceptFriendRequest:
                           headers={"Authorization": "Bearer " + user1_data["access_token"]})
         assert res.json()["detail"] == "Friend Request sent"
         # accept friend request
-        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+        res = client.post("/accept_friend_request/{username}".format(username=user1_data["username"]),
                           headers={"Authorization": "Bearer " + user2_data["access_token"]})
         assert res.json()["detail"] == "friendship accepted"
 
     def test_accept_friend_request_nonexistent_user(self, client, login_user):
         user_data = login_user
         # try to accept friend request from nonexistent user with id=69
-        res = client.post("/accept_friend_request/{user_id}".format(user_id=69),
+        res = client.post("/accept_friend_request/{username}".format(username="fakeUser"),
                           headers={"Authorization": "Bearer " + user_data["access_token"]})
         assert res.status_code == 404
         assert res.json()["detail"] == "User does not exist"
@@ -778,7 +778,7 @@ class TestAcceptFriendRequest:
         user1_data = login_user
         user2_data = login_user2
         # try to accept friend request when no friend request has been sent
-        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+        res = client.post("/accept_friend_request/{username}".format(username=user1_data["username"]),
                           headers={"Authorization": "Bearer " + user2_data["access_token"]})
         assert res.status_code == 404
         assert res.json()["detail"] == "Friend request does not exist"
@@ -791,11 +791,11 @@ class TestAcceptFriendRequest:
                           headers={"Authorization": "Bearer " + user1_data["access_token"]})
         assert res.json()["detail"] == "Friend Request sent"
         # accept friend request
-        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+        res = client.post("/accept_friend_request/{username}".format(username=user1_data["username"]),
                           headers={"Authorization": "Bearer " + user2_data["access_token"]})
         assert res.json()["detail"] == "friendship accepted"
         # try to accept freind request again
-        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]),
+        res = client.post("/accept_friend_request/{username}".format(username=user1_data["username"]),
                           headers={"Authorization": "Bearer " + user2_data["access_token"]})
         assert res.status_code == 403
         assert res.json()["detail"] == "You are already friends with that user"
@@ -808,7 +808,7 @@ class TestAcceptFriendRequest:
                           headers={"Authorization": "Bearer " + user1_data["access_token"]})
         assert res.json()["detail"] == "Friend Request sent"
         # try to accept friend request unauthorized
-        res = client.post("/accept_friend_request/{user_id}".format(user_id=user1_data["user_id"]))
+        res = client.post("/accept_friend_request/{username}".format(username=user1_data["username"]))
         # headers={"Authorization": "Bearer " + user2_data["access_token"]})
         assert res.status_code == 401
         assert res.json()["detail"] == "Not authenticated"
@@ -816,7 +816,44 @@ class TestAcceptFriendRequest:
 
 class TestDenyFriendRequest:
     def test_deny_friend_request(self, client, login_user, login_user2):
-        return
+        user1_data = login_user
+        user2_data = login_user2
+        # send friend request from user1 to user2
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.json()["detail"] == "Friend Request sent"
+        res = client.post("/deny_friend_request/{username}".format(username=user1_data["username"]),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.json()["detail"] == "friendship denied successfully"
 
-    def test_deny_friend_request(self, client, login_user, login_user2):
-        return
+    def test_deny_friend_request_nonexistent_user(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        res = client.post("/deny_friend_request/{username}".format(username="fakeUsername"),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "User does not exist"
+
+    def test_deny_friend_request_nonexistent_friend_request(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        res = client.post("/deny_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "Friend request does not exist"
+
+    def test_deny_friend_request_already_friends(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # send friend request from user1 to user2
+        res = client.post("/send_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.json()["detail"] == "Friend Request sent"
+        # accept friend request
+        res = client.post("/accept_friend_request/{username}".format(username=user1_data["username"]),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.json()["detail"] == "friendship accepted"
+        res = client.post("/deny_friend_request/{username}".format(username=user2_data["username"]),
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 403
+        assert res.json()["detail"] == "You are already friends with that user"

@@ -759,11 +759,11 @@ def see_friend_requests(db: Session = Depends(get_db),
     return crud.get_friend_requests(db=db, user_id=current_user.id)
 
 
-@app.post("/accept_friend_request/{user_id}")
-def accept_friend_request(user_id: int, response: Response, db: Session = Depends(get_db),
+@app.post("/accept_friend_request/{username}")
+def accept_friend_request(username: str, response: Response, db: Session = Depends(get_db),
                           current_user: models.User = Depends(get_current_user)):
     user1 = current_user
-    user2 = crud.get_user(db=db, user_id=user_id)
+    user2 = crud.get_user_by_username(db=db, username=username)
     if not user1 or not user2:
         raise exceptions.NonexistentUserException
     friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
@@ -776,12 +776,12 @@ def accept_friend_request(user_id: int, response: Response, db: Session = Depend
     return message
 
 
-@app.post("/deny_friend_request/{user_id}")
+@app.post("/deny_friend_request/{username}")
 @measure_time
-def deny_friend_requesst(user_id: int, response: Response, db: Session = Depends(get_db),
+def deny_friend_requesst(username: str, response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     user1 = current_user
-    user2 = crud.get_user(db=db, user_id=user_id)
+    user2 = crud.get_user_by_username(db=db, username=username)
     if not user1 or not user2:
         raise exceptions.NonexistentUserException
     friendship = crud.get_friendship(db=db, user_id1=user1.id, user_id2=user2.id)
