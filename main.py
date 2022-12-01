@@ -1007,6 +1007,39 @@ def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response,
     message = {"message": "custom goal created!"}
     return message
 
+@app.post("/accept_group_request/{username}/{group_id}")
+def accept_group_request(username: str, group_id: int, response: Response, db: Session = Depends(get_db),
+                          current_user: models.User = Depends(get_current_user)):
+    user1 = current_user
+    user2 = crud.get_user_by_username(db=db, username=username)
+    if not user1 or not user2:
+        raise exceptions.NonexistentUserException
+    invite = crud.get_membership(db=db, group_id=group_id, user_id=user2.id)
+    if not invite:
+        raise exceptions.FriendRequestDoesNotExistException
+    if not invite.pending:
+        raise exceptions.AlreadyFriendsException
+    crud.accept_group_invite(db=db, group_id=group_id, user_id=user2.id)
+    message = {"detail": "group invite accepted"}
+    return message
+
+
+@app.post("/deny_group_request/{username}")
+@measure_time
+def deny_group_request(username: str, group_id: int, response: Response, db: Session = Depends(get_db),
+                          current_user: models.User = Depends(get_current_user)):
+    user1 = current_user
+    user2 = crud.get_user_by_username(db=db, username=username)
+    if not user1 or not user2:
+        raise exceptions.NonexistentUserException
+    invite = crud.get_membership(db=db, group_id=group_id, user_id=user2.id)
+    if not invite:
+        raise exceptions.FriendRequestDoesNotExistException
+    if not invite.pending:
+        raise exceptions.AlreadyFriendsException
+    crud.accept_group_invite(db=db, group_id=group_id, user_id=user2.id)
+    message = {"detail": "group invite denied"}
+    return message
 
 #DOES NOT REQUIRE AUTH TO RESET
 class ResetPass(BaseModel):
