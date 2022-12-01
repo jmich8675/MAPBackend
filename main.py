@@ -15,7 +15,7 @@ import bcrypt
 from fastapi.routing import APIRoute
 import exceptions
 from database import get_database
-from email_sender import emailVerification
+from email_sender import emailVerification, resetpassVerification, sendNotification
 
 # DATABASE
 from fastapi import Depends, FastAPI, HTTPException
@@ -1006,3 +1006,122 @@ def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response,
 
     message = {"message": "custom goal created!"}
     return message
+
+
+#DOES NOT REQUIRE AUTH TO RESET
+class ResetPass(BaseModel):
+    username: str
+    email: str
+
+@app.post("/reset_password")
+@measure_time
+def reset_password(reset: ResetPass, response: Response,db: Session = Depends(get_db)):
+    # rigid email
+    if not is_email(reset.email):
+        message = {"message": "Please enter a valid Email"}
+        response.status_code = status.HTTP_406_NOT_ACCEPTABLE
+        return message
+    # get user
+    user = crud.get_user_by_email(db, email=reset.email)
+
+    if not user:
+        message = {"message": "User with the given email not found"}
+        response.status_code = status.HTTP_406_NOT_ACCEPTABLE
+        return message
+    
+    if reset.username != user.username:
+        message = {"message": "User email and name do not match"}
+        response.status_code = status.HTTP_406_NOT_ACCEPTABLE
+        return message
+
+    # build jwt with type reset_pass
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    #sub has to be string
+    access_token = create_access_token(
+        data = {"sub": str({ 
+                        "user" : user.username, 
+                        "id": user.id
+        }),
+        "typ": "pass_verification"
+        }
+        , expires_delta=access_token_expires
+    )
+    sent = resetpassVerification(email=user.email, user=user.username, token=access_token)
+    # send email
+    if not sent:
+        # delete the created user
+        message = {"message": "Error Occurred Please try again"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+
+    # if email send.
+
+    message = {"message": "Email sent Successfully, Please check your inbox"}
+    response.status_code = status.HTTP_200_OK
+    return message
+
+class ResetPassword(BaseModel):
+    token: str
+    password: str
+
+@app.post("/verify_reset_password/")
+@measure_time
+def verify_email(reset: ResetPassword, response: Response, db: Session = Depends(get_db)):
+
+    # if password empty
+    if not reset.password:
+        message = {"message": "Bad credentials/no_password_entered"}
+        response.status_code = status.HTTP_406_NOT_ACCEPTABLE
+        return message
+
+    try:
+        payload = jwt.decode(token=reset.token, key=SECRET_KEY, algorithms=[ALGORITHM])
+        sub_payload:str = payload.get("sub")
+        # convert string back to dict to retrieve user and user_id
+        sub_payload:dict = eval(sub_payload)
+        type_payload: str = payload.get("typ")
+        
+        if type_payload == None:
+            message = {"message": "Bad credentials/type"}
+            response.status_code = status.HTTP_401_UNAUTHORIZED
+            return message
+
+        if type_payload != "pass_verification":
+            message = {"message": "Bad credentials/type_not_email_token"}
+            response.status_code = status.HTTP_401_UNAUTHORIZED
+            return message
+
+        user: str = sub_payload.get("user")
+        user_id: int = sub_payload.get("id")
+        
+        db_user = crud.get_user(db, user_id)
+
+        if not db_user:
+            message = {"message": "Bad credentials/user"}
+            response.status_code = status.HTTP_401_UNAUTHORIZED
+            return message
+        
+        if db_user.username != user:
+            message = {"message": "Bad credentials/username"}
+            response.status_code = status.HTTP_401_UNAUTHORIZED
+            return message
+        
+        # everything was good change the password
+        salt = bcrypt.gensalt(12)
+        passhash = bcrypt.hashpw(reset.password.encode('utf-8'), salt)
+        salt = salt.decode('utf-8')
+        passhash = passhash.decode('utf-8')
+
+        if not crud.update_password(user_id=db_user.id, newhash=passhash, newsalt=salt, db=db):
+            message = {"message": "Error updating verification"}
+            response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+            return message
+        
+        message = {"message": "Succesfully Updated Password/Please relogin"}
+        response.status_code = status.HTTP_200_OK
+        return message
+        
+    except JWTError:
+        message = {"message": "Bad credentials/tokendecode"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return message
