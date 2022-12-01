@@ -923,13 +923,13 @@ def change_password(pwjson: NewPassword, response: Response, db: Session = Depen
 #def view_profile():
     #view profile, no verification
 
-class GroupNGroupInfo(BigGoal):
+class GoalNGroupInfo(BigGoal):
     group_name: str
     invites: list[str]
     template_id: int
 
 @app.put("/create_specific_goal_and_group")
-def create_specific_goal_and_group(json: GroupNGroupInfo, response: Response, db: Session = Depends(get_db),
+def create_specific_goal_and_group(json: GoalNGroupInfo, response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     user = crud.get_user_by_username(db=db, username=current_user.username)
     if not user:
@@ -966,9 +966,13 @@ def create_specific_goal_and_group(json: GroupNGroupInfo, response: Response, db
     message = {"goal and group created successfully!"}
     return message
 
+class CustomGoalNGroupInfo(BigCustomGoal):
+    group_name: str
+    invites: list[str]
+    template_id: int
 
 @app.put("/create_custom_goal_and_group")
-def create_custom_goal_and_group(json: GroupNGroupInfo, response: Response, db: Session = Depends(get_db),
+def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     # print(goaljson.questions_answers)
     if not current_user:
