@@ -94,6 +94,7 @@ def create_group(db: Session, name: str, user_id: int, template_id: int):
     ###creator of a group should automatically be a member, so create invite, then accept invite
     create_group_invite(db=db, group_id=db_group.group_id, user_id=user_id)
     accept_group_invite(db=db, group_id=db_group.group_id, user_id=user_id)
+    return db_group
 
 def create_group_invite(db: Session, group_id: int, user_id: int):
     db_groupMember = models.GroupMembers(group_id=group_id, user_id=user_id)

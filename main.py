@@ -960,7 +960,7 @@ def create_specific_goal_and_group(json: GoalNGroupInfo, response: Response, db:
     group = crud.create_group(db=db, name= json.group_name, user_id=current_user.id, template_id=goal.template_id)
     for friend in json.invites:
         friend_id = crud.get_user_by_username(db=db, username=friend).id
-        crud.create_group_invite(db=db, group_id=group.id, user_id=friend_id)
+        crud.create_group_invite(db=db, group_id=group.group_id, user_id=friend_id)
     
 
     message = {"goal and group created successfully!"}
@@ -999,10 +999,10 @@ def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response,
         answer = crud.create_response(db=db, text=QA[1], question_id=question.question_id,
                                       check_in_number=0, goal_id=goal.id)
     
-    group = crud.create_group(db=db, name= json.group_name, user_id=current_user.id, template_id=goal.template_id)
+    group = crud.create_group(db=db, name=json.group_name, user_id=current_user.id, template_id=goal.template_id)
     for friend in json.invites:
         friend_id = crud.get_user_by_username(db=db, username=friend).id
-        crud.create_group_invite(db=db, group_id=group.id, user_id=friend_id)
+        crud.create_group_invite(db=db, group_id=group.group_id, user_id=friend_id)
 
     message = {"message": "custom goal created!"}
     return message
