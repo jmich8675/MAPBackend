@@ -223,7 +223,6 @@ def get_friendship(db: Session, user_id1: int, user_id2: int):
             .filter(and_(models.Friends.user1==user_id1, models.Friends.user2==user_id2)).first()
     return friendship
 
-
 def accept_friend_request(db: Session, user_id1: int, user_id2: int):
     friendship = get_friendship(db=db, user_id1=user_id1, user_id2=user_id2)
     friendship.pending = False
