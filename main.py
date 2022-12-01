@@ -500,7 +500,8 @@ def view_goal_progress(goal_id: int, response: Response, db: Session = Depends(g
         "check_in_period": goal.check_in_period,
         "next_check_in": goal.next_check_in,
         "is_achieved": goal.is_achieved,
-        "is_paused": goal.is_paused
+        "is_paused": goal.is_paused,
+        "is_public": goal.is_public
     }
     return message
 
