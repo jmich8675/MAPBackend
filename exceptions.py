@@ -53,6 +53,7 @@ FriendRequestDoesNotExistException = HTTPException(
 )
 
 
+
 # class NonExistent(HTTPException):
 #
 #     return HTTPException(

@@ -745,7 +745,7 @@ class Commment(BaseModel):
 
 @app.post("/leave_comment/{post_id}")
 @measure_time
-def leave_comment(post_id: int, comment: Commment, db: Session = Depends(get_db),
+def leave_comment(post_id: int, comment: Commment, response: Response, db: Session = Depends(get_db),
                   current_user: models.User = Depends(get_current_user)):
     if not current_user:
         raise exceptions.NonexistentUserException
@@ -753,6 +753,27 @@ def leave_comment(post_id: int, comment: Commment, db: Session = Depends(get_db)
     if not post:
         raise exceptions.NonexistentForumPostException
     comment = crud.create_comment(db=db, content=comment.text, post_id=post_id, comment_author=current_user.id)
+
+    if not comment:
+        message = {"message" : "Server error/ was not able to create the comment"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+    
+    # get user by post.id
+    user = crud.get_user(db=db, user_id=post.post_author)
+
+    if not user:
+        message = {"message" : "Server error/ was not able to find the user of the post"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+    
+    if not sendNotification(email=user.email, user=user.username, commentuser=current_user.username,comment=comment.text, posttitle=post.title):
+        # delete the comment
+        crud.delete_comment(db, comment_id=comment.comment_id)
+        message = {"message" : "Server error/ was not able to send notification to the user"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+    
     message = {"message": "comment created!",
                "comment_id": comment.comment_id}
     return message
