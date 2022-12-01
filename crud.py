@@ -459,9 +459,12 @@ def update_username(user_id: int, username: str, db: Session):
 
 def update_password(user_id: int, newhash: str, newsalt: str, db: Session):
     user = get_user(db=db, user_id=user_id)
-    user.pw_hash = newhash
-    user.pw_salt = newsalt
-    db.commit()
+    if user:
+        user.pw_hash = newhash
+        user.pw_salt = newsalt
+        db.commit()
+        return True
+    return False
 
 ###############################################################################
 

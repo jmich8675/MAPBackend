@@ -1,4 +1,4 @@
-from emailbuilder import generate_list_email_data, createCheckinMessage, createNotificationMessage,createVerificationMessage
+from emailbuilder import generate_list_email_data, createCheckinMessage, createNotificationMessage,createVerificationMessage, createPassResetMessage
 from sendemail import sendmail
 
 def try_and_sendmail(message):
@@ -25,14 +25,17 @@ def sendCheckin():
 
 # function to send email notification
 def sendNotification(email: str, user: str, commentuser: str, comment: str, posttitle: str):
-    sent = try_and_sendmail(createNotificationMessage(email=email, user=user, commentuser=commentuser, comment=comment, posttitle=posttitle))
-
+    return try_and_sendmail(createNotificationMessage(email=email, user=user, commentuser=commentuser, comment=comment, posttitle=posttitle))
 
 #function to send email Verification request
 def emailVerification(email: str, user: str, token: str):
     return try_and_sendmail(createVerificationMessage(email=email, user=user, token=token))
 
-#emailVerification("yoloyoyoyolo12345@gmail.com", "yolo", "Howtoimprovefitness")
+#function to send pass rest links
+def resetpassVerification(email: str, user: str, token: str):
+    return try_and_sendmail(createPassResetMessage(email=email, user=user, token=token))
+
+#resetpassVerification("yoloyoyoyolo12345@gmail.com", "yolo", "Howtoimprovefitness")
 
     
 
