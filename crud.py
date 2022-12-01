@@ -284,15 +284,13 @@ def get_group_members(db: Session, group_id: int):
     for i in range(len(members)):
         members[i] = get_user_profile(db=db, user_id=members[i])
 
-    return members
+    return members    
 
-def get_pending_invites(db: Session, group_id: int):
-    pendingMembers = []
-    for member in db.query(models.GroupMembers).filter(models.GroupMembers.group_id==group_id).filter(models.GroupMembers.pending == True).all():
-        pendingMembers.append(member.user_id)
-
-    for i in range(len(pendingMembers)):
-        pendingMembers[i] = get_user_profile(db=db, user_id=pendingMembers[i])
+def get_group_invites(db: Session, user_id: int):
+    groups = []
+    for group in db.query(models.GroupMembers).filter(models.GroupMembers.user_id==user_id).filter(models.GroupMembers.pending == True).all():
+        groups.append(get_group(db=db, group_id=group.group_id)) 
+    return groups
 
 
 ###############################################################################

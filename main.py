@@ -1028,6 +1028,12 @@ def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response,
     message = {"message": "custom goal created!"}
     return message
 
+@app.get("/my_friend_requests")
+@measure_time
+def see_friend_requests(db: Session = Depends(get_db),
+                        current_user: models.User = Depends(get_current_user)):
+    return crud.get_friend_requests(db=db, user_id=current_user.id)
+
 @app.post("/accept_group_request/{username}/{group_id}")
 def accept_group_request(username: str, group_id: int, response: Response, db: Session = Depends(get_db),
                           current_user: models.User = Depends(get_current_user)):
@@ -1061,6 +1067,20 @@ def deny_group_request(username: str, group_id: int, response: Response, db: Ses
     crud.accept_group_invite(db=db, group_id=group_id, user_id=user2.id)
     message = {"detail": "group invite denied"}
     return message
+
+#class GroupResponse(BaseModel):
+    #questions
+    #template id
+    #creator name
+    #group name
+    #group id
+    #something else
+
+
+@app.get("/my_group_invites")
+def see_group_invites(db: Session = Depends(get_db),
+                        current_user: models.User = Depends(get_current_user)):
+    return crud.get_group_invites(db=db, user_id=current_user.id)
 
 #DOES NOT REQUIRE AUTH TO RESET
 class ResetPass(BaseModel):
