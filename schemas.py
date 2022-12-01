@@ -110,6 +110,7 @@ class GroupsBase(BaseModel):
     group_id: int
     creator_id: int
     group_name: str
+    template_id: int
 
 class GroupsCreate(GroupsBase):
     pass

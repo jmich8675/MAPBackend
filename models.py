@@ -29,12 +29,13 @@ class Friends(Base):
     user2 = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     pending = Column(Boolean, default=True)
 
-class Groups(Base):
+class Group(Base):
     __tablename__ = "groups"
 
     group_id = Column(Integer, primary_key=True, index=True)
     creator_id = Column(Integer, ForeignKey("users.id"))
     group_name = Column(String, index=True)
+    template_id = Column(Integer, ForeignKey("templates.template_id"))
 
 class GroupMembers(Base):
     __tablename__ = "groupMembers"
@@ -121,4 +122,3 @@ class Comment(Base):
     timestamp = Column(DateTime, index=True)
     post_id = Column(Integer, ForeignKey("posts.post_id", ondelete="CASCADE"))
     comment_author = Column(Integer, ForeignKey("users.id"))
-

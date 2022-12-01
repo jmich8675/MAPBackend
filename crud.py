@@ -85,8 +85,8 @@ def create_friend_request(db: Session, user_id1: int, user_id2: int):
     return db_friends
 
 ###user_id is the creator of the group
-def create_group(db: Session, name: str, user_id: int):
-    db_group = models.Groups(creator_id=user_id, group_name=name)
+def create_group(db: Session, name: str, user_id: int, template_id: int):
+    db_group = models.Group(creator_id=user_id, group_name=name, template_id=template_id)
     db.add(db_group)
     db.commit()
     db.refresh(db_group)
@@ -101,7 +101,6 @@ def create_group_invite(db: Session, group_id: int, user_id: int):
     db.commit()
     db.refresh(db_groupMember)
     return db_groupMember
-
 ###############################################################################
 
                     ### C(R)UD RETRIEVE/GET METHODS ###
@@ -272,7 +271,7 @@ def deny_group_invite(db: Session, group_id: int, user_id: int):
     return "membership denied"
 
 def get_group(db: Session, group_id: int):
-    return db.query(models.Groups).filter(models.Groups.group_id==group_id).first()
+    return db.query(models.Group).filter(models.Group.group_id==group_id).first()
 
 def get_membership(db: Session, group_id: int, user_id: int):
     return db.query(models.GroupMembers).filter(and_(models.GroupMembers.group_id==group_id, models.GroupMembers.user_id==user_id)).first()

@@ -918,3 +918,88 @@ def change_password(pwjson: NewPassword, response: Response, db: Session = Depen
     crud.update_password(user_id=current_user.id, newhash=passhash, newsalt=salt, db=db)
     message = {"password updated"}
     return message
+
+#@app.get("/{username}/profile")
+#def view_profile():
+    #view profile, no verification
+
+class GroupNGroupInfo(BigGoal):
+    group_name: str
+    invites: list[str]
+    template_id: int
+
+@app.put("/create_specific_goal_and_group")
+def create_specific_goal_and_group(json: GroupNGroupInfo, response: Response, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(get_current_user)):
+    user = crud.get_user_by_username(db=db, username=current_user.username)
+    if not user:
+        message = {"message": "user does not exist"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return message
+    template = crud.get_template(db=db, template_id=json.template_id)
+    if not template:
+        message = {"message": "template does not exist"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return message
+
+    goal = crud.create_goal(db=db, goal_name=json.goal_name,
+                            check_in_period=json.check_in_period,
+                            template_id=json.template_id,
+                            user_id=user.id)
+
+    for answer in json.responses:
+        question = crud.get_question(db=db, question_id=answer.question_id)
+        if not question:
+            message = {"message": "question does not exist"}
+            response.status_code = status.HTTP_400_BAD_REQUEST
+            return message
+
+        crud.create_response(db=db, text=answer.text, question_id=answer.question_id,
+                             check_in_number=0, goal_id=goal.id)
+    
+    group = crud.create_group(db=db, name= json.group_name, user_id=current_user.id, template_id=goal.template_id)
+    for friend in json.invites:
+        friend_id = crud.get_user_by_username(db=db, username=friend).id
+        crud.create_group_invite(db=db, group_id=group.id, user_id=friend_id)
+    
+
+    message = {"goal and group created successfully!"}
+    return message
+
+
+@app.put("/create_custom_goal_and_group")
+def create_custom_goal_and_group(json: GroupNGroupInfo, response: Response, db: Session = Depends(get_db),
+                         current_user: models.User = Depends(get_current_user)):
+    # print(goaljson.questions_answers)
+    if not current_user:
+        message = {"message": "user not found"}
+        response.status_code = status.HTTP_400_BAD_REQUEST
+        return message
+
+    template = crud.create_template(db=db, name=json.goal_name, is_custom=True,
+                                    creator_id=current_user.id)
+    if not template:
+        message = {"message": "template not created"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+
+    goal = crud.create_goal(db=db, goal_name=json.goal_name, check_in_period=json.check_in_period,
+                            template_id=template.template_id, user_id=current_user.id)
+    if not goal:
+        message = {"message": "goal not created"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+
+    for QA in json.questions_answers:
+        question = crud.create_question(db=db, text=QA[0], template_id=template.template_id,
+                                        response_type=models.response_types(0), next_check_in_period=0)
+        answer = crud.create_response(db=db, text=QA[1], question_id=question.question_id,
+                                      check_in_number=0, goal_id=goal.id)
+    
+    group = crud.create_group(db=db, name= json.group_name, user_id=current_user.id, template_id=goal.template_id)
+    for friend in json.invites:
+        friend_id = crud.get_user_by_username(db=db, username=friend).id
+        crud.create_group_invite(db=db, group_id=group.id, user_id=friend_id)
+
+    message = {"message": "custom goal created!"}
+    return message
