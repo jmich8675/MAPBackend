@@ -977,3 +977,5 @@ class TestChangePassword:
 
 
 class TestCreateGroupGoal:
+    def test_create_specific_goal_and_group(self, client, login_user, login_user2):
+        assert False
