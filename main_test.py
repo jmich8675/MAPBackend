@@ -983,6 +983,7 @@ class TestCreateGroupGoal:
 
 class TestDeleteAccount:
     def test_delete_account(self, client, login_user, login_user2, session):
+        print("*********************************")
         deleting = login_user
         second = login_user2
         #create goal
@@ -1000,21 +1001,89 @@ class TestDeleteAccount:
                       json=custom_goal)
         assert res.status_code == 201
         #create forum posts/comments
-        goals = crud.get_user_goals(username=deleting["username"],db=session,skip=0,limit=100)
-        for goal in goals:
-            print(goal.goal_name)
+        postd = {"title": "excellent service",
+                "content": "like every taco bell, this one had great employees"}
+        resd = client.post("/create_post",
+                          headers={"Authorization": "Bearer " + deleting["access_token"]},
+                          json=postd)
+        assert res.status_code == 201
+
+        posts = {"title": "mcdonalds",
+                "content": "i think mcdonalds is pretty good"}
+        ress = client.post("/create_post",
+                          headers={"Authorization": "Bearer " + second["access_token"]},
+                          json=posts)
+        assert res.status_code == 201
+        print(ress)
+        comment = {"text": "totally!"}
+        res = client.post("/leave_comment/{post_id}".format(post_id=resd.json()["post_id"]),
+                          headers={"Authorization": "Bearer " + second["access_token"]},
+                          json=comment)
+        assert res.status_code == 200
+
+        comment = {"text": "shut the hell up"}
+        res = client.post("/leave_comment/{post_id}".format(post_id=ress.json()["post_id"]),
+                          headers={"Authorization": "Bearer " + deleting["access_token"]},
+                          json=comment)
+        assert res.status_code == 200
         #create friends
-
-        #create lone group, 
+        res = client.post("/send_friend_request/{username}".format(username=second["username"]),
+                          headers={"Authorization": "Bearer " + deleting["access_token"]})
+        res = client.post("/accept_friend_request/{username}".format(username=deleting["username"]),
+                          headers={"Authorization": "Bearer " + second["access_token"]})
+        #create lone group
+        custom_goal_and_group = {
+            "goal_name": "all by myself",
+            "check_in_period": 90,
+            "questions_answers": [["lone?","lone...."],["none?","none..!"]],
+            "is_group": True,
+            "group_name": "table for one",
+            "invites": []
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          headers={"Authorization": "Bearer " + deleting["access_token"]},
+                          json=custom_goal_and_group)
+        assert res.status_code == 200
         
+        #create group with multiple
+        custom_goal_and_group = {
+            "goal_name": "us!",
+            "check_in_period": 90,
+            "questions_answers": [["lone?","no!"],["none?","wrong..!"]],
+            "is_group": True,
+            "group_name": "our group (together)",
+            "invites": ["{username}".format(username=second["username"])]
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          headers={"Authorization": "Bearer " + deleting["access_token"]},
+                          json=custom_goal_and_group)
+        assert res.status_code == 200
+        res = client.post("/accept_group_request/{group_id}".format(group_id=res.json()["group_id"]),
+                          headers={"Authorization": "Bearer " + second["access_token"]})
+        assert res.status_code == 200
+
+
         #delete user
-
-        #assert goals are gone 
-        #assert posts and comment on posts are gone
-        #assert comments are gone
+        res = client.delete("/delete_account/{username}".format(username=deleting["username"]),
+                        headers={"Authorization": "Bearer " + deleting["access_token"]})
+        
+    
+        #assert goals are gone
+        goals = crud.get_user_goals(user_id=deleting["user_id"],db=session,skip=0,limit=100)
+        assert len(goals) == 0
+        #assert posts and comments are gone
+        comments = crud.get_comments_by_author(db=session, user_id=deleting["user_id"])
+        assert len(comments) == 0
+        posts = crud.get_posts_by_author(db=session, post_author=deleting["user_id"])
+        assert len(posts) == 0
         #assert friendships are gone
+        second_friends = crud.get_users_friends(db=session, user_id=second["user_id"])
+        assert len(second_friends) == 0
         #assert group is gone
+        groups = crud.get_user_groups(db=session, user_id=deleting["user_id"])
+        assert len(groups) == 0
         #assert group ownership is transfered
-
-
-        assert True
+        second_groups = crud.get_user_groups(db=session, user_id=second["user_id"])
+        assert len(second_groups) == 1
+        group = second_groups[0]
+        assert group.creator_id == second["user_id"]

@@ -142,9 +142,8 @@ def get_not_verified_users(db: Session):
 def get_goal(db: Session, goal_id: int):
     return db.query(models.Goal).filter(models.Goal.id == goal_id).first()
 
-def get_user_goals(username: str, db: Session, skip: int = 0, limit: int = 100):
-    user=db.query(models.User).filter(models.User.username == username).first()
-    return user.goals
+def get_user_goals(user_id: int, db: Session, skip: int = 0, limit: int = 100):
+    return db.query(models.Goal).filter(models.Goal.creator_id == user_id).all()
 
 def get_user_goals_by_id(db: Session, user_id: int):
     return db.query(models.Goal).filter(models.Goal.creator_id == user_id).all()
