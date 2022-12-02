@@ -1293,3 +1293,21 @@ def delete_account(user: str, response: Response, db: Session = Depends(get_db),
 
     # delete the user and all his history
     crud.delete_user(db, db_user.id)    
+
+class TemplateBody(BaseModel):
+    name: str
+    questions: list[str]
+    
+
+@app.post("/create_template")
+def create_template_4test(json: TemplateBody, db: Session=Depends(get_db), 
+                          is_running_tests: bool = Depends(is_running_tests),
+                          current_user: models.User = Depends(get_current_user)):
+    if not is_running_tests:
+        return
+    template = crud.create_template(db=db, name=json.name, is_custom=False, creator_id=current_user.id)
+    for q in json.questions:
+        crud.create_question(db=db, text=q, template_id=template.id, 
+                             response_type=models.response_types(0), next_check_in_period=0)
+    message={"template created successfully"}
+    return message

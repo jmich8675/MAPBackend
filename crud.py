@@ -378,7 +378,7 @@ def edit_post_content(db: Session, post_id, newcontent: str):
 
 def update_goal_check_in_period(db: Session, goal_id: int, new_check_in: int):
     goal = get_goal(db, goal_id)
-    if goal:
+    if goal:    
         goal.check_in_period = new_check_in
         goal.next_check_in = goal.start_date + timedelta(days=goal.check_in_period)
         db.commit()
