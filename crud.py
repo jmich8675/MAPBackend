@@ -31,7 +31,8 @@ def create_response(db: Session, text: str, question_id: int, check_in_number: i
     return db_response
 
 def create_post(db: Session, title: str, content: str, post_author: int):
-    db_post = models.Post(title=title, content=content, post_author=post_author, timestamp=datetime.now())
+    db_post = models.Post(title=title, content=content, post_author=post_author, timestamp=datetime.now(),
+                          recent_comment_timestamp=datetime.now())
     db.add(db_post)
     db.commit()
     db.refresh(db_post)
@@ -189,7 +190,7 @@ def get_posts_after_timestamp(db: Session, timestamp: datetime):
     return db.query(models.Post).filter(models.Post.timestamp > timestamp).all()
 
 def get_feed(db: Session, skip: int=0, limit: int=100):
-    return db.query(models.Post).order_by(models.Post.timestamp.desc()) \
+    return db.query(models.Post).order_by(models.Post.recent_comment_timestamp.desc()) \
         .offset(skip).limit(limit).all()
 
 ### GET QUESTIONS
@@ -343,6 +344,7 @@ def edit_post_content(db: Session, post_id, newcontent: str):
     post = get_post_by_id(db, post_id)
     if post:
         post.content = newcontent
+        post.recent_comment_timestamp = datetime.now()
         db.commit()
         db.refresh(post)
         return True
