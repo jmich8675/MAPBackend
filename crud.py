@@ -292,6 +292,11 @@ def get_group_invites(db: Session, user_id: int):
         groups.append(get_group(db=db, group_id=group.group_id)) 
     return groups
 
+def get_user_groups(db: Session, user_id: int):
+    groups = []
+    for group in db.query(models.GroupMembers).filter(models.GroupMembers.user_id==user_id).filter(models.GroupMembers.pending == False).all():
+        groups.append(get_group(db=db, group_id=group.group_id)) 
+    return groups
 
 ###############################################################################
 

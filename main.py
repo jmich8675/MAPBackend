@@ -767,7 +767,7 @@ def leave_comment(post_id: int, comment: Commment, response: Response, db: Sessi
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
     
-    if not sendNotification(email=user.email, user=user.username, commentuser=current_user.username,comment=comment.text, posttitle=post.title):
+    if not sendNotification(email=user.email, user=user.username, commentuser=current_user.username,comment=comment.content, posttitle=post.title):
         # delete the comment
         crud.delete_comment(db, comment_id=comment.comment_id)
         message = {"message" : "Server error/ was not able to send notification to the user"}
@@ -1025,7 +1025,7 @@ def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response,
         friend_id = crud.get_user_by_username(db=db, username=friend).id
         crud.create_group_invite(db=db, group_id=group.group_id, user_id=friend_id)
 
-    message = {"message": "custom goal created!"}
+    message = {"message": "custom goal and group created!"}
     return message
 
 @app.get("/my_friend_requests")
@@ -1034,53 +1034,70 @@ def see_friend_requests(db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
     return crud.get_friend_requests(db=db, user_id=current_user.id)
 
-@app.post("/accept_group_request/{username}/{group_id}")
-def accept_group_request(username: str, group_id: int, response: Response, db: Session = Depends(get_db),
+@app.post("/accept_group_request/{group_id}")
+def accept_group_request(group_id: int, response: Response, db: Session = Depends(get_db),
                           current_user: models.User = Depends(get_current_user)):
-    user1 = current_user
-    user2 = crud.get_user_by_username(db=db, username=username)
-    if not user1 or not user2:
+    user = current_user
+    group = crud.get_group(db=db, group_id=group_id)
+    if not user or not group:
         raise exceptions.NonexistentUserException
-    invite = crud.get_membership(db=db, group_id=group_id, user_id=user2.id)
+    invite = crud.get_membership(db=db, group_id=group_id, user_id=user.id)
     if not invite:
         raise exceptions.FriendRequestDoesNotExistException
     if not invite.pending:
         raise exceptions.AlreadyFriendsException
-    crud.accept_group_invite(db=db, group_id=group_id, user_id=user2.id)
+    crud.accept_group_invite(db=db, group_id=group_id, user_id=user.id)
     message = {"detail": "group invite accepted"}
     return message
 
 
-@app.post("/deny_group_request/{username}")
+@app.post("/deny_group_request/{group_id}")
 @measure_time
-def deny_group_request(username: str, group_id: int, response: Response, db: Session = Depends(get_db),
+def deny_group_request(group_id: int, response: Response, db: Session = Depends(get_db),
                           current_user: models.User = Depends(get_current_user)):
-    user1 = current_user
-    user2 = crud.get_user_by_username(db=db, username=username)
-    if not user1 or not user2:
+    user = current_user
+    group = crud.get_group(db=db, group_id=group_id)
+    if not user or not group:
         raise exceptions.NonexistentUserException
-    invite = crud.get_membership(db=db, group_id=group_id, user_id=user2.id)
+    invite = crud.get_membership(db=db, group_id=group_id, user_id=user.id)
     if not invite:
         raise exceptions.FriendRequestDoesNotExistException
     if not invite.pending:
         raise exceptions.AlreadyFriendsException
-    crud.accept_group_invite(db=db, group_id=group_id, user_id=user2.id)
+    crud.deny_group_invite(db=db, group_id=group_id, user_id=user.id)
     message = {"detail": "group invite denied"}
     return message
 
-#class GroupResponse(BaseModel):
-    #questions
-    #template id
-    #creator name
-    #group name
-    #group id
-    #something else
+class GroupResponse(BaseModel):
+    group_name: str
+    group_id: int
+    template_id: int
+    questions: list[str] = []
+    creator_name: str
 
-
-@app.get("/my_group_invites")
+@app.get("/my_group_invites", response_model=list[GroupResponse])
 def see_group_invites(db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
-    return crud.get_group_invites(db=db, user_id=current_user.id)
+    cheerios: list[GroupResponse] = []
+    invites = crud.get_group_invites(db=db, user_id=current_user.id)
+    for i in range(len(invites)):
+        cheerios.append(GroupResponse(
+        group_name = invites[i].group_name,
+        group_id = invites[i].group_id,
+        template_id = invites[i].template_id,
+        questions = [],
+        creator_name = crud.get_user(db=db, user_id=invites[i].creator_id).username))
+        qs = crud.get_questions_by_template(db=db, template_id = invites[i].template_id)
+        for q in qs:
+            cheerios[i].questions.append(q.text)
+    return cheerios
+
+#todo: my groups
+@app.get("/my_groups")
+def view_my_groups(db: Session = Depends(get_db),
+                   current_user: models.User = Depends(get_current_user)):
+    return crud.get_user_groups(db=db, user_id=current_user.id)
+
 
 #DOES NOT REQUIRE AUTH TO RESET
 class ResetPass(BaseModel):
