@@ -290,6 +290,17 @@ def get_group_members(db: Session, group_id: int):
 
     return members    
 
+def update_group_owner(db: Session, group_id: int, user_id: int):
+    group = get_group(db, group_id)
+    if group:
+        group.creator_id = user_id
+        db.commit()
+        db.refresh(group)
+        return True
+    else:
+        return False
+
+
 def get_user_groups(db: Session, user_id: int):
     return db.query(models.GroupMembers).filter(models.GroupMembers.user_id==user_id).all()
 
