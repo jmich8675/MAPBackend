@@ -144,6 +144,9 @@ def get_user_goals(username: str, db: Session, skip: int = 0, limit: int = 100):
     user=db.query(models.User).filter(models.User.username == username).first()
     return user.goals
 
+def get_user_goals_by_id(db: Session, user_id: int):
+    return db.query(models.Goal).filter(models.Goal.creator_id == user_id).all()
+
 def get_checkin_goals(db: Session):
     return db.query(models.Goal).filter(models.Goal.can_check_in == True).all()
 
@@ -286,12 +289,17 @@ def get_group_members(db: Session, group_id: int):
 
     return members    
 
+def get_user_groups(db: Session, user_id: int):
+    return db.query(models.GroupMembers).filter(models.GroupMembers.user_id==user_id).all()
+
 def get_group_invites(db: Session, user_id: int):
     groups = []
     for group in db.query(models.GroupMembers).filter(models.GroupMembers.user_id==user_id).filter(models.GroupMembers.pending == True).all():
         groups.append(get_group(db=db, group_id=group.group_id)) 
     return groups
 
+def get_template_by_creator(db: Session, creator_id: int):
+    return db.query(models.Template).filter(models.Template.creator_id == creator_id).all()
 
 ###############################################################################
 
@@ -470,15 +478,91 @@ def update_password(user_id: int, newhash: str, newsalt: str, db: Session):
 
 ###############################################################################
 
+def delete_template(db: Session, template_id: int):
+    
+    for q in get_questions_by_template(db, template_id):
+        delete_question(db, q.question_id)
+    
+    deleted = db.query(models.Template).filter(models.Template.template_id == template_id).delete(synchronize_session="fetch")
+    if deleted:
+        db.commit()
+        return True
+    else:
+        return False
+
+def delete_question(db: Session, question_id: int):
+    deleted = db.query(models.Question).filter(models.Question.question_id == question_id).delete(synchronize_session="fetch")
+    if deleted:
+        db.commit()
+        return True
+    else:
+        return False
+
+def delete_response(db: Session, response_id: int):
+    deleted = db.query(models.Response).filter(models.Response.response_id == response_id).delete(synchronize_session="fetch")
+    if deleted:
+        db.commit()
+        return True
+    else:
+        return False
+
+def delete_all_user_friendships(db: Session, user_id: int):
+    deleted1=db.query(models.Friends).filter(models.Friends.user1 == user_id).delete(synchronize_session="fetch")
+    deleted2=db.query(models.Friends).filter(models.Friends.user2 == user_id).delete(synchronize_session="fetch")
+
+    if deleted1 and deleted2:
+        db.commit()
+        return True
+    else:
+        return False
+
+def delete_membership(db: Session, user_id: int):
+    deleted=db.query(models.GroupMembers).filter(models.GroupMembers.user_id == user_id).delete(synchronize_session="fetch")
+
+    if deleted:
+        db.commit()
+        return True
+    else:
+        return False
+
 def delete_user(db: Session, user_id: int):
+
+    ##delete all friendships featuring user
+    delete_all_user_friendships(db, user_id)
+
+    ##remove user from groups
+    
+    for g in get_user_groups(db, user_id):
+        delete_membership(db, user_id)
+
+    ##delete all posts by user, also deletes all comments associated with those posts
+    for p in get_posts_by_author(db, user_id):
+        delete_post(db, p.post_id)
+
+    ##delete comments by user
+    for c in get_comments_by_author(db, user_id):
+        delete_comment(db, c.comment_id)
+
+    ##delete all templates by user, also deletes all questions associated with those templates
+    for t in get_template_by_creator(db, user_id):
+        delete_template(db, t.template_id)
+    
+    ##delete all goals by user, also deletes all responses associated with those goals
+    for g in get_user_goals_by_id(db, user_id):
+        delete_goal(db, g.id)
+
+    ##delete user
     deleted=db.query(models.User).filter(models.User.id == user_id).delete(synchronize_session="fetch")
     if deleted:
         db.commit()
-        return "Successful deletion"
+        return True
     else:
-        return "User not found"
+        return False
 
 def delete_goal(db: Session, goal_id: int):
+    for r in get_responses_by_goal(db, goal_id):
+        delete_response(db, r.response_id)
+
     deleted=db.query(models.Goal).filter(models.Goal.id == goal_id).delete(synchronize_session="fetch")
     if deleted:
         db.commit()
@@ -495,6 +579,10 @@ def delete_comment(db: Session, comment_id: int):
         return False
 
 def delete_post(db: Session, post_id: int):
+    ### delete comments associated with the post
+    for c in get_comments_by_post(db, post_id):
+        delete_comment(db, c.comment_id)
+
     deleted=db.query(models.Post).filter(models.Post.post_id == post_id).delete(synchronize_session="fetch")
     if deleted:
         db.commit()

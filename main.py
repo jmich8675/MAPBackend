@@ -581,6 +581,19 @@ def achieved_goal(goal_id: int, response: Response, db: Session = Depends(get_db
     response.status_code = status.HTTP_200_OK
     return message
 
+###
+#@app.delete("/delete_user/{user_id}")
+#@measure_time
+#def delete_user(user_id: int, response: Response, db: Session = Depends(get_db)):
+#    if crud.delete_user(db=db, user_id=user_id):
+#        message = {"message": "user deleted"}
+#        response.status_code = status.HTTP_200_OK
+#    else:
+#        message = {"message": "user not deleted"}
+#        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+#        
+#    return message
+###
 
 @app.delete("/delete_goal/{goal_id}")
 @measure_time
