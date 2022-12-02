@@ -55,11 +55,12 @@ def create_user(db: Session, user: schemas.UserCreate):
     return db_user
 
 def create_goal(db: Session, goal_name: str, check_in_period: int,
-                         template_id: int, user_id: int):
+                         template_id: int, user_id: int, is_group: bool):
     db_goal = models.Goal(goal_name=goal_name, template_id=template_id, creator_id=user_id,
                           start_date=date.today(), check_in_num=0,
                           check_in_period=check_in_period,
-                          next_check_in=date.today() + timedelta(days=check_in_period))
+                          next_check_in=date.today() + timedelta(days=check_in_period),
+                          is_group_goal=is_group)
     db.add(db_goal)
     db.commit()
     db.refresh(db_goal)
@@ -501,6 +502,14 @@ def update_goal_owner(db: Session, goal_id: int, user_id: int):
     goal = get_goal(db, goal_id)
     if goal:
         goal.creator_id = user_id
+        db.commit()
+        return True
+    return False
+
+def make_group_goal(db: Session, goal_id: int):
+    goal=get_goal(db, goal_id)
+    if goal:
+        goal.is_group_goal = True
         db.commit()
         return True
     return False

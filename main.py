@@ -375,6 +375,7 @@ class BigGoal(BaseModel):
     template_id: int
     check_in_period: int
     responses: list[SmallResponse] = []
+    is_group: bool
 
 
 @app.post("/create_specific_goal")
@@ -395,7 +396,7 @@ def create_specific_goal(goaljson: BigGoal, response: Response, db: Session = De
     goal = crud.create_goal(db=db, goal_name=goaljson.goal_name,
                             check_in_period=goaljson.check_in_period,
                             template_id=goaljson.template_id,
-                            user_id=user.id)
+                            user_id=user.id, is_group=goaljson.is_group)
 
     for answer in goaljson.responses:
         question = crud.get_question(db=db, question_id=answer.question_id)
@@ -415,6 +416,7 @@ class BigCustomGoal(BaseModel):
     goal_name: str
     check_in_period: int
     questions_answers: list[list[str, str]] = []
+    is_group: bool
 
 
 @app.post("/create_custom_goal")
@@ -436,7 +438,7 @@ def create_custom_goal(goaljson: BigCustomGoal,
         return message
 
     goal = crud.create_goal(db=db, goal_name=goaljson.goal_name, check_in_period=goaljson.check_in_period,
-                            template_id=template.template_id, user_id=current_user.id)
+                            template_id=template.template_id, user_id=current_user.id, is_group=goaljson.is_group)
     if not goal:
         message = {"message": "goal not created"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -1000,7 +1002,8 @@ def create_specific_goal_and_group(json: GoalNGroupInfo, response: Response, db:
     goal = crud.create_goal(db=db, goal_name=json.goal_name,
                             check_in_period=json.check_in_period,
                             template_id=json.template_id,
-                            user_id=user.id)
+                            user_id=user.id,
+                            is_group=json.is_group)
 
     for answer in json.responses:
         question = crud.get_question(db=db, question_id=answer.question_id)
@@ -1043,12 +1046,12 @@ def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response,
         return message
 
     goal = crud.create_goal(db=db, goal_name=json.goal_name, check_in_period=json.check_in_period,
-                            template_id=template.template_id, user_id=current_user.id)
+                            template_id=template.template_id, user_id=current_user.id, is_group=json.is_group)
     if not goal:
         message = {"message": "goal not created"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
-
+    
     for QA in json.questions_answers:
         question = crud.create_question(db=db, text=QA[0], template_id=template.template_id,
                                         response_type=models.response_types(0), next_check_in_period=0)
