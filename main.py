@@ -1063,7 +1063,8 @@ def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response,
         friend_id = crud.get_user_by_username(db=db, username=friend).id
         crud.create_group_invite(db=db, group_id=group.group_id, user_id=friend_id)
 
-    message = {"message": "custom goal and group created!"}
+    message = {"message": "custom goal and group created!",
+               "group_id": group.group_id}
     return message
 
 @app.get("/my_friend_requests")
