@@ -300,6 +300,9 @@ def update_group_owner(db: Session, group_id: int, user_id: int):
     else:
         return False
 
+def get_group_by_owner(db: Session, user_id: int):
+    return db.query(models.Group).filter(models.Group.creator_id==user_id).all()
+
 
 def get_user_groups(db: Session, user_id: int):
     return db.query(models.GroupMembers).filter(models.GroupMembers.user_id==user_id).all()
@@ -317,6 +320,10 @@ def get_user_groups(db: Session, user_id: int):
     return groups
 def get_template_by_creator(db: Session, creator_id: int):
     return db.query(models.Template).filter(models.Template.creator_id == creator_id).all()
+
+def get_goal_by_group(db: Session, group_id: int):
+    return db.query(models.Goal).filter(models.Goal.group_id == group_id)
+
 
 ###############################################################################
 
@@ -490,6 +497,14 @@ def update_password(user_id: int, newhash: str, newsalt: str, db: Session):
         return True
     return False
 
+def update_goal_owner(db: Session, goal_id: int, user_id: int):
+    goal = get_goal(db, goal_id)
+    if goal:
+        goal.creator_id = user_id
+        db.commit()
+        return True
+    return False
+
 ###############################################################################
 
                         ### CRU(D) DELETE METHODS ###
@@ -613,3 +628,10 @@ def delete_not_verified_users(db: Session):
     for user in users:
         if ((date.today() - user.verification_sent_date) > timedelta(days=5)):
             delete_user(db, user.id)
+
+def delete_group(db: Session, group_id: int):
+    deleted = db.query(models.Group).filter(models.Group.group_id == group_id).delete(synchronize_session="fetch")
+    if deleted:
+        db.commit()
+        return True
+    return False

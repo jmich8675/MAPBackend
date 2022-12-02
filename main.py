@@ -1252,3 +1252,44 @@ def verify_email(reset: ResetPassword, response: Response, db: Session = Depends
         response.status_code = status.HTTP_400_BAD_REQUEST
         return message
 
+@app.delete("/delete_account")
+@measure_time
+def delete_account(user: str, response: Response, db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_user)):
+    # check if the passed user and current user are same
+    if user != current_user:
+        message = {"message": "You are not Authorized to delete the user"}
+        response.status_code = status.HTTP_401_UNAUTHORIZED
+        return message
+    
+    # get user id
+    db_user = crud.get_user_by_username(db, user)
+
+    if not db_user:
+        message = {"message": "Please try again, could not locate user"}
+        response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
+        return message
+
+    
+    # get all the current groups that the owner owns
+    curr_groups = crud.get_group_by_owner(db, db_user.id)
+
+    #iterate through the groups and transfer ownership
+    for group in curr_groups:
+        members = crud.get_group_members(db, group.group_id)
+        # if the user is the only member in the group delete the group
+        if len(members) == 1:
+            crud.delete_group(db, group.group_id)
+        # transfer ownership to the first person except the user that is returned.
+        else:
+            crud.update_group_owner(db, group.group_id, members[1].id)
+    
+        # go through all the goals of particular group_id and change the creator as above.
+
+        goals = crud.get_goal_by_group(db, group.group_id)
+
+        for goal in goals:
+            crud.update_goal_owner(db, goal.id, members[1].id)
+
+    # delete the user and all his history
+    crud.delete_user(db, db_user.id)    
