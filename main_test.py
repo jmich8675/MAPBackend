@@ -308,8 +308,8 @@ class TestCustomGoal:
                                            'is_group_goal': False,
                                            'is_paused': False,
                                            'is_public': False,
-                                           'next_check_in': '2022-12-06',
-                                           'start_date': '2022-11-29',
+                                           'next_check_in': str(date.today() + timedelta(days=7)),
+                                           'start_date': str(date.today()),
                                            'template_id': 1}]}
 
     def test_create_custom_goal_invalid_template(self, client, login_user):
@@ -857,3 +857,125 @@ class TestDenyFriendRequest:
                           headers={"Authorization": "Bearer " + user1_data["access_token"]})
         assert res.status_code == 403
         assert res.json()["detail"] == "You are already friends with that user"
+
+
+class TestChangeEmailAddress:
+    def test_change_email_address(self, client, login_user):
+        user_data = login_user
+        body = {"email": "newEmail@example.com"}
+        res = client.put("/change_email_address",
+                         json=body,
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "email updated"
+
+    def test_change_email_address_unauthorized(self, client, login_user):
+        user_data = login_user
+        body = {"email": "newEmail@example.com"}
+        # try without auth headers
+        res = client.put("/change_email_address",
+                         json=body)
+        # headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+
+
+class TestChangeUsername:
+    def test_change_username(self, client, login_user):
+        user_data = login_user
+        body = {"username": "newUsername"}
+        res = client.put("/change_username",
+                         json=body,
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "username updated"
+        # now try to login with new username
+        login_body = "grant_type=&username={username}&password={password}&scope=&client_id=&client_secret=".format(
+            username=body["username"], password=user_data["password"])
+        res = client.post("/token",
+                          headers={"accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                          data=login_body)
+        assert res.status_code == 200
+        assert res.json()["token_type"] == "bearer"
+        assert verify_access_token(res.json()["access_token"], body["username"])
+
+    def test_change_username_login_with_old_username(self, client, login_user):
+        user_data = login_user
+        body = {"username": "newUsername"}
+        res = client.put("/change_username",
+                         json=body,
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "username updated"
+        # now try to login with new username
+        login_body = "grant_type=&username={username}&password={password}&scope=&client_id=&client_secret=".format(
+            username=user_data["username"], password=user_data["password"])
+        res = client.post("/token",
+                          headers={"accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                          data=login_body)
+        assert res.status_code == 401
+        print(res.json())
+        assert res.json()["detail"] == "Incorrect username or password"
+
+    def test_change_username_to_existing_user(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # new username equals user2
+        body = {"username": user2_data["username"]}
+        res = client.put("/change_username",
+                         json=body,
+                         headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 403
+        assert res.json()["detail"] == "That username is taken"
+
+    def test_change_username_unauthorized(self, client, login_user):
+        user_data = login_user
+        body = {"username": "newUsername"}
+        res = client.put("/change_username",
+                         json=body)
+        # headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+
+
+class TestChangePassword:
+
+    def test_change_password(self, client, login_user):
+        user_data = login_user
+        body = {"repw": user_data["password"], "newpw": "new_password"}
+        res = client.put("/change_password",
+                         json=body,
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "password updated"
+        # now test logging in with the new password
+        login_body = "grant_type=&username={username}&password={password}&scope=&client_id=&client_secret=".format(
+            username=user_data["username"], password="new_password")
+        res = client.post("/token",
+                          headers={"accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                          data=login_body)
+        assert res.status_code == 200
+        assert res.json()["token_type"] == "bearer"
+        assert verify_access_token(res.json()["access_token"], user_data["username"])
+
+    def test_change_password_wrong_old_password(self, client, login_user):
+        user_data = login_user
+        body = {"repw": "incorrect_password", "newpw": "new_password"}
+        res = client.put("/change_password",
+                         json=body,
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 400
+        assert res.json()["detail"] == "Previous password is incorrect"
+        # now test that logging in with the new password is impossible
+        login_body = "grant_type=&username={username}&password={password}&scope=&client_id=&client_secret=".format(
+            username=user_data["username"], password="new_password")
+        res = client.post("/token",
+                          headers={"accept": "application/json", "Content-Type": "application/x-www-form-urlencoded"},
+                          data=login_body)
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Incorrect username or password"
+
+
+class TestCreateGroupGoal:
+    def test_create_specific_goal_and_group(self, client, login_user, login_user2):
+        assert False
