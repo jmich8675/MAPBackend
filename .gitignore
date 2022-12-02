@@ -1,3 +1,8 @@
+# log files for scheduler
+checkin_emails.log
+update_checkin.log
+delete_users.log
+
 # Database File for testing
 test.db
 sql_app.db
