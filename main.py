@@ -199,13 +199,13 @@ def signup(user: User, response: Response, db: Session = Depends(get_db),
 
     # generate JWT token for email verification
     access_token_expires = timedelta(days=ACCESS_TOKEN_EXPIRE_DAYS)
-    #sub has to be string
+    # sub has to be string
     access_token = create_access_token(
-        data = {"sub": str({ 
-                        "user" : new_user.username, 
-                        "id": new_user.id
+        data={"sub": str({
+            "user": new_user.username,
+            "id": new_user.id
         }),
-        "typ": "email_verification"
+            "typ": "email_verification"
         }
         , expires_delta=access_token_expires
     )
@@ -230,16 +230,17 @@ def signup(user: User, response: Response, db: Session = Depends(get_db),
     response.status_code = status.HTTP_200_OK
     return message
 
+
 @app.get("/verify_email/")
 @measure_time
 def verify_email(q: str, response: Response, db: Session = Depends(get_db)):
     try:
         payload = jwt.decode(token=q, key=SECRET_KEY, algorithms=[ALGORITHM])
-        sub_payload:str = payload.get("sub")
+        sub_payload: str = payload.get("sub")
         # convert string back to dict to retrieve user and user_id
-        sub_payload:dict = eval(sub_payload)
+        sub_payload: dict = eval(sub_payload)
         type_payload: str = payload.get("typ")
-        
+
         if type_payload == None:
             message = {"message": "Bad credentials/type"}
             response.status_code = status.HTTP_401_UNAUTHORIZED
@@ -252,42 +253,40 @@ def verify_email(q: str, response: Response, db: Session = Depends(get_db)):
 
         user: str = sub_payload.get("user")
         user_id: int = sub_payload.get("id")
-        
+
         db_user = crud.get_user(db, user_id)
 
         if not db_user:
             message = {"message": "Bad credentials/user"}
             response.status_code = status.HTTP_401_UNAUTHORIZED
             return message
-        
+
         if db_user.username != user:
             message = {"message": "Bad credentials/username"}
             response.status_code = status.HTTP_401_UNAUTHORIZED
             return message
-        
+
         if db_user.is_verified:
             message = {"message": "User Email already verified"}
             response.status_code = status.HTTP_200_OK
             return message
-        
+
         if not crud.update_user_verification(db, db_user.id):
             message = {"message": "Error updating verification"}
             response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             return message
-        
+
         message = {"message": "Succesfully verified your Email"}
         response.status_code = status.HTTP_200_OK
         return message
-        
+
     except JWTError:
         message = {"message": "Bad credentials/tokendecode"}
         response.status_code = status.HTTP_400_BAD_REQUEST
         return message
-    
 
 
 def verify_password(plain_password, hashed_password):
-
     return bcrypt.checkpw(plain_password.encode('utf8'), hashed_password.encode('utf8'))
 
 
@@ -883,7 +882,7 @@ class NewEmail(BaseModel):
 def change_email_address(emailjson: NewEmail, db: Session = Depends(get_db),
                          current_user: models.User = Depends(get_current_user)):
     crud.update_email_address(user_id=current_user.id, email=emailjson.email, db=db)
-    message = {"email updated"}
+    message = {"detail": "email updated"}
     return message
 
 
@@ -894,8 +893,11 @@ class NewUsername(BaseModel):
 @app.put("/change_username")
 def change_username(json: NewUsername, db: Session = Depends(get_db),
                     current_user: models.User = Depends(get_current_user)):
-    crud.update_username(user_id=current_user.id, username=json.username, db=db)
-    message = {"username updated"}
+    try:
+        crud.update_username(user_id=current_user.id, username=json.username, db=db)
+    except:
+        raise exceptions.UsernameTakenException
+    message = {"detail": "username updated"}
     return message
     # make sure to logout
 
@@ -909,28 +911,28 @@ class NewPassword(BaseModel):
 def change_password(pwjson: NewPassword, response: Response, db: Session = Depends(get_db),
                     current_user: models.User = Depends(get_current_user)):
     if not verify_password(pwjson.repw, current_user.pw_hash):
-        message = {"passwords do not match!"}
-        response.status_code = status.HTTP_400_BAD_REQUEST
-        return message
+        raise exceptions.IncorrectPreviousPasswordException
     salt = bcrypt.gensalt(12)
     passhash = bcrypt.hashpw(pwjson.newpw.encode('utf-8'), salt)
     salt = salt.decode('utf-8')
     passhash = passhash.decode('utf-8')
     crud.update_password(user_id=current_user.id, newhash=passhash, newsalt=salt, db=db)
-    message = {"password updated"}
+    message = {"detail": "password updated"}
     return message
 
-#@app.get("/{username}/profile")
-#def view_profile():
-    #view profile, no verification
+
+# @app.get("/{username}/profile")
+# def view_profile():
+# view profile, no verification
 
 class GoalNGroupInfo(BigGoal):
     group_name: str
     invites: list[str]
 
+
 @app.post("/create_specific_goal_and_group")
 def create_specific_goal_and_group(json: GoalNGroupInfo, response: Response, db: Session = Depends(get_db),
-                         current_user: models.User = Depends(get_current_user)):
+                                   current_user: models.User = Depends(get_current_user)):
     user = crud.get_user_by_username(db=db, username=current_user.username)
     if not user:
         message = {"message": "user does not exist"}
@@ -956,23 +958,24 @@ def create_specific_goal_and_group(json: GoalNGroupInfo, response: Response, db:
 
         crud.create_response(db=db, text=answer.text, question_id=answer.question_id,
                              check_in_number=0, goal_id=goal.id)
-    
-    group = crud.create_group(db=db, name= json.group_name, user_id=current_user.id, template_id=goal.template_id)
+
+    group = crud.create_group(db=db, name=json.group_name, user_id=current_user.id, template_id=goal.template_id)
     for friend in json.invites:
         friend_id = crud.get_user_by_username(db=db, username=friend).id
         crud.create_group_invite(db=db, group_id=group.group_id, user_id=friend_id)
-    
 
     message = {"goal and group created successfully!"}
     return message
+
 
 class CustomGoalNGroupInfo(BigCustomGoal):
     group_name: str
     invites: list[str]
 
+
 @app.post("/create_custom_goal_and_group")
 def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response, db: Session = Depends(get_db),
-                         current_user: models.User = Depends(get_current_user)):
+                                 current_user: models.User = Depends(get_current_user)):
     # print(goaljson.questions_answers)
     if not current_user:
         message = {"message": "user not found"}
@@ -998,7 +1001,7 @@ def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response,
                                         response_type=models.response_types(0), next_check_in_period=0)
         answer = crud.create_response(db=db, text=QA[1], question_id=question.question_id,
                                       check_in_number=0, goal_id=goal.id)
-    
+
     group = crud.create_group(db=db, name=json.group_name, user_id=current_user.id, template_id=goal.template_id)
     for friend in json.invites:
         friend_id = crud.get_user_by_username(db=db, username=friend).id

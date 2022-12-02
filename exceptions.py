@@ -52,6 +52,16 @@ FriendRequestDoesNotExistException = HTTPException(
     detail="Friend request does not exist"
 )
 
+UsernameTakenException = HTTPException(
+    status_code=status.HTTP_403_FORBIDDEN,
+    detail="That username is taken"
+)
+
+IncorrectPreviousPasswordException = HTTPException(
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="Previous password is incorrect"
+)
+
 
 # class NonExistent(HTTPException):
 #
