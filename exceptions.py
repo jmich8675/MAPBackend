@@ -62,7 +62,10 @@ IncorrectPreviousPasswordException = HTTPException(
     detail="Previous password is incorrect"
 )
 
-
+AlreadyInGroup = HTTPException(
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="The user is already in the group!"
+)
 
 # class NonExistent(HTTPException):
 #

@@ -10,8 +10,8 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 
 import crud
-from .main import app, get_db, Base2, is_running_tests
-from .main import verify_access_token
+from main import app, get_db, Base2, is_running_tests
+from main import verify_access_token
 from models import response_types
 
 # Create the new database session
@@ -282,7 +282,8 @@ class TestCustomGoal:
             "questions_answers": [
                 ["Have you eaten food recently?", "No, but I'm working on it."],
                 ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
-            ]
+            ],
+            "is_grou": False
         }
         res = client.post("/create_custom_goal",
                           headers={"Authorization": "Bearer " + user_data["access_token"]},
@@ -979,3 +980,41 @@ class TestChangePassword:
 class TestCreateGroupGoal:
     def test_create_specific_goal_and_group(self, client, login_user, login_user2):
         assert False
+
+class TestDeleteAccount:
+    def test_delete_account(self, client, login_user, login_user2, session):
+        deleting = login_user
+        second = login_user2
+        #create goal
+        custom_goal = {
+        "goal_name": "Live Más",
+        "check_in_period": 7,
+        "questions_answers": [
+            ["order?", "crunchwrap supreme"],
+            ["drink?", "baja blast"]
+        ],
+        "is_group": False
+        }
+        res = client.post("/create_custom_goal",
+                      headers={"Authorization": "Bearer " + deleting["access_token"]},
+                      json=custom_goal)
+        assert res.status_code == 201
+        #create forum posts/comments
+        goals = crud.get_user_goals(username=deleting["username"],db=session,skip=0,limit=100)
+        for goal in goals:
+            print(goal.goal_name)
+        #create friends
+
+        #create lone group, 
+        
+        #delete user
+
+        #assert goals are gone 
+        #assert posts and comment on posts are gone
+        #assert comments are gone
+        #assert friendships are gone
+        #assert group is gone
+        #assert group ownership is transfered
+
+
+        assert True
