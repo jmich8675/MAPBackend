@@ -976,6 +976,44 @@ class TestChangePassword:
         assert res.json()["detail"] == "Incorrect username or password"
 
 
-class TestCreateGroupGoal:
+class TestCreateSpecificGroupGoal:
     def test_create_specific_goal_and_group(self, client, login_user, login_user2):
-        assert False
+        user1_data = login_user
+        user2_data = login_user2
+        body = {
+            "goal_name": "Group Goal",
+            "template_id": 1,
+            "check_in_period": 7,
+            "responses": [],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ]
+        }
+        res = client.post("/create_specific_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+
+    # group_name: str
+    # invites: list[str]
+
+
+class TestCreateCustomGroupGoal:
+    def test_create_custom_goal_and_group(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        body = {
+            "goal_name": "Not Die",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["Have you eaten food recently?", "No, but I'm working on it."],
+                ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
+            ],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data[""]
+            ]
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})

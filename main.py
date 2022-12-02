@@ -754,25 +754,26 @@ def leave_comment(post_id: int, comment: Commment, response: Response, db: Sessi
     comment = crud.create_comment(db=db, content=comment.text, post_id=post_id, comment_author=current_user.id)
 
     if not comment:
-        message = {"message" : "Server error/ was not able to create the comment"}
+        message = {"message": "Server error/ was not able to create the comment"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
-    
+
     # get user by post.id
     user = crud.get_user(db=db, user_id=post.post_author)
 
     if not user:
-        message = {"message" : "Server error/ was not able to find the user of the post"}
+        message = {"message": "Server error/ was not able to find the user of the post"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
-    
-    if not sendNotification(email=user.email, user=user.username, commentuser=current_user.username,comment=comment.content, posttitle=post.title):
+
+    if not sendNotification(email=user.email, user=user.username, commentuser=current_user.username,
+                            comment=comment.content, posttitle=post.title):
         # delete the comment
         crud.delete_comment(db, comment_id=comment.comment_id)
-        message = {"message" : "Server error/ was not able to send notification to the user"}
+        message = {"message": "Server error/ was not able to send notification to the user"}
         response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
         return message
-    
+
     message = {"message": "comment created!",
                "comment_id": comment.comment_id}
     return message
@@ -1031,15 +1032,17 @@ def create_custom_goal_and_group(json: CustomGoalNGroupInfo, response: Response,
     message = {"message": "custom goal and group created!"}
     return message
 
+
 @app.get("/my_friend_requests")
 @measure_time
 def see_friend_requests(db: Session = Depends(get_db),
                         current_user: models.User = Depends(get_current_user)):
     return crud.get_friend_requests(db=db, user_id=current_user.id)
 
+
 @app.post("/accept_group_request/{group_id}")
 def accept_group_request(group_id: int, response: Response, db: Session = Depends(get_db),
-                          current_user: models.User = Depends(get_current_user)):
+                         current_user: models.User = Depends(get_current_user)):
     user = current_user
     group = crud.get_group(db=db, group_id=group_id)
     if not user or not group:
@@ -1057,7 +1060,7 @@ def accept_group_request(group_id: int, response: Response, db: Session = Depend
 @app.post("/deny_group_request/{group_id}")
 @measure_time
 def deny_group_request(group_id: int, response: Response, db: Session = Depends(get_db),
-                          current_user: models.User = Depends(get_current_user)):
+                       current_user: models.User = Depends(get_current_user)):
     user = current_user
     group = crud.get_group(db=db, group_id=group_id)
     if not user or not group:
@@ -1071,6 +1074,7 @@ def deny_group_request(group_id: int, response: Response, db: Session = Depends(
     message = {"detail": "group invite denied"}
     return message
 
+
 class GroupResponse(BaseModel):
     group_name: str
     group_id: int
@@ -1078,38 +1082,41 @@ class GroupResponse(BaseModel):
     questions: list[str] = []
     creator_name: str
 
+
 @app.get("/my_group_invites", response_model=list[GroupResponse])
 def see_group_invites(db: Session = Depends(get_db),
-                        current_user: models.User = Depends(get_current_user)):
+                      current_user: models.User = Depends(get_current_user)):
     cheerios: list[GroupResponse] = []
     invites = crud.get_group_invites(db=db, user_id=current_user.id)
     for i in range(len(invites)):
         cheerios.append(GroupResponse(
-        group_name = invites[i].group_name,
-        group_id = invites[i].group_id,
-        template_id = invites[i].template_id,
-        questions = [],
-        creator_name = crud.get_user(db=db, user_id=invites[i].creator_id).username))
-        qs = crud.get_questions_by_template(db=db, template_id = invites[i].template_id)
+            group_name=invites[i].group_name,
+            group_id=invites[i].group_id,
+            template_id=invites[i].template_id,
+            questions=[],
+            creator_name=crud.get_user(db=db, user_id=invites[i].creator_id).username))
+        qs = crud.get_questions_by_template(db=db, template_id=invites[i].template_id)
         for q in qs:
             cheerios[i].questions.append(q.text)
     return cheerios
 
-#todo: my groups
+
+# todo: my groups
 @app.get("/my_groups")
 def view_my_groups(db: Session = Depends(get_db),
                    current_user: models.User = Depends(get_current_user)):
     return crud.get_user_groups(db=db, user_id=current_user.id)
 
 
-#DOES NOT REQUIRE AUTH TO RESET
+# DOES NOT REQUIRE AUTH TO RESET
 class ResetPass(BaseModel):
     username: str
     email: str
 
+
 @app.post("/reset_password")
 @measure_time
-def reset_password(reset: ResetPass, response: Response,db: Session = Depends(get_db)):
+def reset_password(reset: ResetPass, response: Response, db: Session = Depends(get_db)):
     # rigid email
     if not is_email(reset.email):
         message = {"message": "Please enter a valid Email"}
@@ -1122,7 +1129,7 @@ def reset_password(reset: ResetPass, response: Response,db: Session = Depends(ge
         message = {"message": "User with the given email not found"}
         response.status_code = status.HTTP_406_NOT_ACCEPTABLE
         return message
-    
+
     if reset.username != user.username:
         message = {"message": "User email and name do not match"}
         response.status_code = status.HTTP_406_NOT_ACCEPTABLE
@@ -1130,13 +1137,13 @@ def reset_password(reset: ResetPass, response: Response,db: Session = Depends(ge
 
     # build jwt with type reset_pass
     access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-    #sub has to be string
+    # sub has to be string
     access_token = create_access_token(
-        data = {"sub": str({ 
-                        "user" : user.username, 
-                        "id": user.id
+        data={"sub": str({
+            "user": user.username,
+            "id": user.id
         }),
-        "typ": "pass_verification"
+            "typ": "pass_verification"
         }
         , expires_delta=access_token_expires
     )
@@ -1154,14 +1161,15 @@ def reset_password(reset: ResetPass, response: Response,db: Session = Depends(ge
     response.status_code = status.HTTP_200_OK
     return message
 
+
 class ResetPassword(BaseModel):
     token: str
     password: str
 
+
 @app.post("/verify_reset_password/")
 @measure_time
 def verify_email(reset: ResetPassword, response: Response, db: Session = Depends(get_db)):
-
     # if password empty
     if not reset.password:
         message = {"message": "Bad credentials/no_password_entered"}
@@ -1170,11 +1178,11 @@ def verify_email(reset: ResetPassword, response: Response, db: Session = Depends
 
     try:
         payload = jwt.decode(token=reset.token, key=SECRET_KEY, algorithms=[ALGORITHM])
-        sub_payload:str = payload.get("sub")
+        sub_payload: str = payload.get("sub")
         # convert string back to dict to retrieve user and user_id
-        sub_payload:dict = eval(sub_payload)
+        sub_payload: dict = eval(sub_payload)
         type_payload: str = payload.get("typ")
-        
+
         if type_payload == None:
             message = {"message": "Bad credentials/type"}
             response.status_code = status.HTTP_401_UNAUTHORIZED
@@ -1187,19 +1195,19 @@ def verify_email(reset: ResetPassword, response: Response, db: Session = Depends
 
         user: str = sub_payload.get("user")
         user_id: int = sub_payload.get("id")
-        
+
         db_user = crud.get_user(db, user_id)
 
         if not db_user:
             message = {"message": "Bad credentials/user"}
             response.status_code = status.HTTP_401_UNAUTHORIZED
             return message
-        
+
         if db_user.username != user:
             message = {"message": "Bad credentials/username"}
             response.status_code = status.HTTP_401_UNAUTHORIZED
             return message
-        
+
         # everything was good change the password
         salt = bcrypt.gensalt(12)
         passhash = bcrypt.hashpw(reset.password.encode('utf-8'), salt)
@@ -1210,13 +1218,12 @@ def verify_email(reset: ResetPassword, response: Response, db: Session = Depends
             message = {"message": "Error updating verification"}
             response.status_code = status.HTTP_500_INTERNAL_SERVER_ERROR
             return message
-        
+
         message = {"message": "Succesfully Updated Password/Please relogin"}
         response.status_code = status.HTTP_200_OK
         return message
-        
+
     except JWTError:
         message = {"message": "Bad credentials/tokendecode"}
         response.status_code = status.HTTP_400_BAD_REQUEST
         return message
-
