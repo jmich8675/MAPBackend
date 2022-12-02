@@ -1075,9 +1075,14 @@ def see_friend_requests(db: Session = Depends(get_db),
 @app.post("/send_group_request/{group_id}")
 def send_group_request(group_id: int, db: Session = Depends(get_db),
                        current_user: models.User = Depends(get_current_user)):
-    crud.create_group_invite(db=db, group_id=group_id, user_id=current_user.id)
-    message = {"group invite created"}
-    return message
+    
+    try:
+        crud.create_group_invite(db=db, group_id=group_id, user_id=current_user.id)
+        message = {"detail":"group invite created"}
+        return message
+    except:
+        message = {"detail":"already friends!"}
+        return message
 
 @app.post("/accept_group_request/{group_id}")
 def accept_group_request(group_id: int, response: Response, db: Session = Depends(get_db),
@@ -1262,7 +1267,7 @@ def verify_email(reset: ResetPassword, response: Response, db: Session = Depends
         response.status_code = status.HTTP_400_BAD_REQUEST
         return message
 
-@app.delete("/delete_account")
+@app.delete("/delete_account/{user}")
 @measure_time
 def delete_account(user: str, response: Response, db: Session = Depends(get_db),
                     current_user: models.User = Depends(get_current_user)):
