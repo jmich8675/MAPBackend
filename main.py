@@ -1107,7 +1107,7 @@ class GroupResponse(BaseModel):
     group_name: str
     group_id: int
     template_id: int
-    questions: list[str] = []
+    questions: list[SmallResponse] = [[]]
     creator_name: str
 
 @app.get("/my_group_invites", response_model=list[GroupResponse])
@@ -1124,7 +1124,7 @@ def see_group_invites(db: Session = Depends(get_db),
         creator_name = crud.get_user(db=db, user_id=invites[i].creator_id).username))
         qs = crud.get_questions_by_template(db=db, template_id = invites[i].template_id)
         for q in qs:
-            cheerios[i].questions.append(q.text)
+            cheerios[i].questions.append(SmallResponse(text=q.text, question_id=q.question_id))
     return cheerios
 
 #todo: my groups
@@ -1299,7 +1299,7 @@ class TemplateBody(BaseModel):
     questions: list[str]
     
 
-@app.post("/create_template")
+@app.post("/create_template_test")
 def create_template_4test(json: TemplateBody, db: Session=Depends(get_db), 
                           is_running_tests: bool = Depends(is_running_tests),
                           current_user: models.User = Depends(get_current_user)):
