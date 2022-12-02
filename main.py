@@ -1257,7 +1257,7 @@ def verify_email(reset: ResetPassword, response: Response, db: Session = Depends
 def delete_account(user: str, response: Response, db: Session = Depends(get_db),
                     current_user: models.User = Depends(get_current_user)):
     # check if the passed user and current user are same
-    if user != current_user:
+    if user != current_user.username:
         message = {"message": "You are not Authorized to delete the user"}
         response.status_code = status.HTTP_401_UNAUTHORIZED
         return message
@@ -1292,7 +1292,9 @@ def delete_account(user: str, response: Response, db: Session = Depends(get_db),
             crud.update_goal_owner(db, goal.id, members[1].id)
 
     # delete the user and all his history
-    crud.delete_user(db, db_user.id)    
+    crud.delete_user(db, db_user.id)  
+    message = {"account deleted!"} 
+    return message 
 
 class TemplateBody(BaseModel):
     name: str
