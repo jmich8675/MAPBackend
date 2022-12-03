@@ -261,7 +261,8 @@ def create_custom_goal(client, login_user):
         "questions_answers": [
             ["Have you eaten food recently?", "No, but I'm working on it."],
             ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
-        ]
+        ],
+        "is_group": False
     }
     res = client.post("/create_custom_goal",
                       headers={"Authorization": "Bearer " + user_data["access_token"]},
@@ -283,7 +284,7 @@ class TestCustomGoal:
                 ["Have you eaten food recently?", "No, but I'm working on it."],
                 ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
             ],
-            "is_grou": False
+            "is_group": False
         }
         res = client.post("/create_custom_goal",
                           headers={"Authorization": "Bearer " + user_data["access_token"]},
@@ -977,42 +978,562 @@ class TestChangePassword:
         assert res.json()["detail"] == "Incorrect username or password"
 
 
-class TestCreateGroupGoal:
+class TestCreateSpecificGroupGoal:
     def test_create_specific_goal_and_group(self, client, login_user, login_user2):
-        assert False
+        user1_data = login_user
+        user2_data = login_user2
+        # create template
+        body = {
+            "name": "Template Name",
+            "questions": ["Question 1?", "Question 2?"]
+        }
+        res = client.post("/create_template_test",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "template created successfully"
+        template_id = res.json()["template_id"]
+        body = {
+            "goal_name": "Group Goal",
+            "template_id": template_id,
+            "check_in_period": 7,
+            "responses": [],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_specific_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "goal and group created successfully!"
+        # check if goal exists
+        res = client.get("/goals".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user1_data["access_token"]}, )
+        assert res.status_code == 200
+        assert res.json() == {
+            'message': [
+                {
+                    'id': 1, 'is_paused': False, 'check_in_period': 7, 'check_in_num': 0, 'template_id': 1,
+                    'can_check_in': False, 'group_id': None, 'goal_name': 'Group Goal', 'creator_id': 1,
+                    'start_date': str(date.today()),
+                    'next_check_in': str(date.today() + timedelta(days=7)),
+                    'is_public': False, 'is_achieved': False, 'is_group_goal': True}]
+        }
+
+    def test_create_specific_goal_and_group_nonexistent_template_id(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # nonexistent template_id
+        body = {
+            "goal_name": "Group Goal",
+            "template_id": 69,
+            "check_in_period": 7,
+            "responses": [],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_specific_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "template does not exist"
+        # check if goal exists
+        res = client.get("/goals".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user1_data["access_token"]}, )
+        assert res.status_code == 200
+        assert res.json()["message"] == []
+
+    def test_create_specific_goal_and_group_bad_question_id(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # create template
+        body = {
+            "name": "Template Name",
+            "questions": ["Question 1?", "Question 2?"]
+        }
+        res = client.post("/create_template_test",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "template created successfully"
+        template_id = res.json()["template_id"]
+        # invalid question id
+        body = {
+            "goal_name": "Group Goal",
+            "template_id": template_id,
+            "check_in_period": 7,
+            "responses": [{"text": "respond",
+                           "question_id": 6}],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_specific_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 400
+        assert res.json()["message"] == "error involving responses"
+
+    def test_create_specific_goal_and_group_unauthorized(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # create template
+        body = {
+            "name": "Template Name",
+            "questions": ["Question 1?", "Question 2?"]
+        }
+        res = client.post("/create_template_test",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "template created successfully"
+        template_id = res.json()["template_id"]
+        body = {
+            "goal_name": "Group Goal",
+            "template_id": template_id,
+            "check_in_period": 7,
+            "responses": [],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        # try without headers
+        res = client.post("/create_specific_goal_and_group",
+                          json=body)
+        # headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+
+
+class TestCreateCustomGroupGoal:
+    def test_create_custom_goal_and_group(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        body = {
+            "goal_name": "Not Die",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["Have you eaten food recently?", "No, but I'm working on it."],
+                ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
+            ],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "custom goal and group created!"
+        # check if goal exists
+        res = client.get("/goals".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user1_data["access_token"]}, )
+        assert res.status_code == 200
+        assert res.json() == {
+            'message': [
+                {
+                    'id': 1, 'is_paused': False, 'check_in_period': 7, 'check_in_num': 0, 'template_id': 1,
+                    'can_check_in': False, 'group_id': None, 'goal_name': 'Not Die', 'creator_id': 1,
+                    'start_date': str(date.today()),
+                    'next_check_in': str(date.today() + timedelta(days=7)),
+                    'is_public': False, 'is_achieved': False, 'is_group_goal': True}]
+        }
+
+    def test_create_custom_goal_and_group_unauthorized(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        body = {
+            "goal_name": "Not Die",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["Have you eaten food recently?", "No, but I'm working on it."],
+                ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
+            ],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          json=body)
+        # headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+
+
+class TestAcceptGroupRequest:
+
+    def test_accept_group_request(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # user1 creates a goal and invites user2
+
+        body = {
+            "goal_name": "Not Die",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["Have you eaten food recently?", "No, but I'm working on it."],
+                ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
+            ],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "custom goal and group created!"
+
+
+
+
+        # user2 gets their goals to get the group_id
+        res = client.get("/my_group_invites".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]}, )
+        assert res.status_code == 200
+        new_goal_group_id = res.json()[0]["group_id"]
+        print("**************************")
+        print(new_goal_group_id)
+
+
+        res = client.post("accept_group_request/{group_id}".format(group_id=new_goal_group_id),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "group invite accepted"
+
+        res = client.get("my_groups".format(group_id=new_goal_group_id),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+
+
+
+    def test_accept_group_request_invalid_group_id(self, client, login_user):
+        user_data = login_user
+        # invalid group_id
+        res = client.post("accept_group_request/{group_id}".format(group_id=69),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "User does not exist"
+
+    def test_accept_group_request_not_invited(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # user1 creates a goal and invites user2
+
+        body = {
+            "goal_name": "Not Die",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["Have you eaten food recently?", "No, but I'm working on it."],
+                ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
+            ],
+            "group_name": "Epic Group",
+            "invites": [
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "custom goal and group created!"
+
+        # user2 gets their goals to get the group_id
+        res = client.get("/my_group_invites".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]}, )
+        assert res.status_code == 200
+        assert len(res.json()) == 0
+
+
+        res = client.post("accept_group_request/{group_id}".format(group_id=1),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "Friend request does not exist"
+
+    def test_accept_group_request_twice(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # user1 creates a goal and invites user2
+
+        body = {
+            "goal_name": "Not Die",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["Have you eaten food recently?", "No, but I'm working on it."],
+                ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
+            ],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "custom goal and group created!"
+
+        # user2 gets their goals to get the group_id
+        res = client.get("/my_group_invites".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]}, )
+        assert res.status_code == 200
+        new_goal_group_id = res.json()[0]["group_id"]
+        print("**************************")
+        print(new_goal_group_id)
+
+        res = client.post("accept_group_request/{group_id}".format(group_id=new_goal_group_id),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "group invite accepted"
+
+        res = client.post("accept_group_request/{group_id}".format(group_id=new_goal_group_id),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 400
+        assert res.json()["detail"] == "You have already accepted that group invite"
+
+
+class TestDenyGroupRequest:
+    def test_deny_group_request(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # user1 creates a goal and invites user2
+
+        body = {
+            "goal_name": "Not Die",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["Have you eaten food recently?", "No, but I'm working on it."],
+                ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
+            ],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "custom goal and group created!"
+
+        # user2 gets their goals to get the group_id
+        res = client.get("/my_group_invites".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]}, )
+        assert res.status_code == 200
+        new_goal_group_id = res.json()[0]["group_id"]
+        print("**************************")
+        print(new_goal_group_id)
+
+        res = client.post("deny_group_request/{group_id}".format(group_id=new_goal_group_id),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "group invite denied"
+
+        res = client.get("/my_group_invites".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]}, )
+        assert res.status_code == 200
+        assert len(res.json()) == 0
+
+    def test_deny_group_request_invalid_group_id(self, client, login_user):
+        user_data = login_user
+        # invalid group_id
+        res = client.post("deny_group_request/{group_id}".format(group_id=69),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "User does not exist"
+
+    def test_deny_group_request_not_invited(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # user1 creates a goal and invites user2
+
+        body = {
+            "goal_name": "Not Die",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["Have you eaten food recently?", "No, but I'm working on it."],
+                ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
+            ],
+            "group_name": "Epic Group",
+            "invites": [
+
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "custom goal and group created!"
+
+        # user2 gets their goals to get the group_id
+        res = client.get("/my_group_invites".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]}, )
+        assert res.status_code == 200
+        assert len(res.json()) == 0
+
+        res = client.post("deny_group_request/{group_id}".format(group_id=1),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "Group invite does not exist"
+
+    def test_deny_group_request_twice(self, client, login_user, login_user2):
+        user1_data = login_user
+        user2_data = login_user2
+        # user1 creates a goal and invites user2
+
+        body = {
+            "goal_name": "Not Die",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["Have you eaten food recently?", "No, but I'm working on it."],
+                ["Have you avoided getting shot?", "I haven't been shot in a month, which is great progress."]
+            ],
+            "group_name": "Epic Group",
+            "invites": [
+                user2_data["username"]
+            ],
+            "is_group": True
+        }
+        res = client.post("/create_custom_goal_and_group",
+                          json=body,
+                          headers={"Authorization": "Bearer " + user1_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "custom goal and group created!"
+
+        # user2 gets their goals to get the group_id
+        res = client.get("/my_group_invites".format(username=user1_data["username"]),
+                         headers={"Authorization": "Bearer " + user2_data["access_token"]}, )
+        assert res.status_code == 200
+        new_goal_group_id = res.json()[0]["group_id"]
+        print("**************************")
+        print(new_goal_group_id)
+
+        res = client.post("deny_group_request/{group_id}".format(group_id=new_goal_group_id),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()["detail"] == "group invite denied"
+
+        res = client.post("deny_group_request/{group_id}".format(group_id=new_goal_group_id),
+                          headers={"Authorization": "Bearer " + user2_data["access_token"]})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "Group invite does not exist"
+
+
+class TestMostViewActivePost:
+    def test_most_active_posts(self, client, login_user):
+        user_data = login_user
+        post = {"title": "How do I know if I'M prengan?",
+                "content": "how would I know if I prengan and what are the sine's"}
+        res = client.post("/create_post",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=post)
+        assert res.status_code == 201
+
+        res = client.get("/see_posts?skip=0&limit=100",
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()[0]["title"] == "How do I know if I'M prengan?"
+        assert res.json()[0]["content"] == "how would I know if I prengan and what are the sine's"
+        first_post_id = res.json()[0]["post_id"]
+        print(first_post_id)
+        # second post
+        post = {"title": "Post 2?",
+                "content": "Post content"}
+        res = client.post("/create_post",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=post)
+        assert res.status_code == 201
+
+        res = client.get("/see_posts?skip=0&limit=100",
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 200
+        assert res.json()[0]["title"] == "Post 2?"
+        assert res.json()[0]["content"] == "Post content"
+
+        # previous post should be second
+        assert res.json()[1]["title"] == "How do I know if I'M prengan?"
+        assert res.json()[1]["content"] == "how would I know if I prengan and what are the sine's"
+
+
+        # leave comment
+        comment = {"text": "u prengan if pregananant"}
+        res = client.post("/leave_comment/{post_id}".format(post_id=first_post_id),
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=comment)
+        assert res.status_code == 200
+        assert res.json()["message"] == "comment created!"
+        # make sure new post updated
+        res = client.get("/see_posts?skip=0&limit=100",
+                         headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.json()[0]["title"] == "How do I know if I'M prengan?"
+        assert res.json()[0]["content"] == "how would I know if I prengan and what are the sine's"
+
+    def test_most_active_posts_unauthorized(self, client, login_user):
+        user_data = login_user
+        post = {"title": "How do I know if I'M prengan?",
+                "content": "how would I know if I prengan and what are the sine's"}
+        res = client.post("/create_post",
+                          headers={"Authorization": "Bearer " + user_data["access_token"]},
+                          json=post)
+        assert res.status_code == 201
+        # leave out token to test unauthorized
+        res = client.get("/see_posts?skip=0&limit=100")
+                         #headers={"Authorization": "Bearer " + user_data["access_token"]})
+        assert res.status_code == 401
+        assert res.json()["detail"] == "Not authenticated"
+
+
 
 class TestDeleteAccount:
     def test_delete_account(self, client, login_user, login_user2, session):
         print("*********************************")
         deleting = login_user
         second = login_user2
-        #create goal
+        # create goal
         custom_goal = {
-        "goal_name": "Live Más",
-        "check_in_period": 7,
-        "questions_answers": [
-            ["order?", "crunchwrap supreme"],
-            ["drink?", "baja blast"]
-        ],
-        "is_group": False
+            "goal_name": "Live Más",
+            "check_in_period": 7,
+            "questions_answers": [
+                ["order?", "crunchwrap supreme"],
+                ["drink?", "baja blast"]
+            ],
+            "is_group": False
         }
         res = client.post("/create_custom_goal",
-                      headers={"Authorization": "Bearer " + deleting["access_token"]},
-                      json=custom_goal)
-        assert res.status_code == 201
-        #create forum posts/comments
-        postd = {"title": "excellent service",
-                "content": "like every taco bell, this one had great employees"}
-        resd = client.post("/create_post",
                           headers={"Authorization": "Bearer " + deleting["access_token"]},
-                          json=postd)
+                          json=custom_goal)
+        assert res.status_code == 201
+        # create forum posts/comments
+        postd = {"title": "excellent service",
+                 "content": "like every taco bell, this one had great employees"}
+        resd = client.post("/create_post",
+                           headers={"Authorization": "Bearer " + deleting["access_token"]},
+                           json=postd)
         assert res.status_code == 201
 
         posts = {"title": "mcdonalds",
-                "content": "i think mcdonalds is pretty good"}
+                 "content": "i think mcdonalds is pretty good"}
         ress = client.post("/create_post",
-                          headers={"Authorization": "Bearer " + second["access_token"]},
-                          json=posts)
+                           headers={"Authorization": "Bearer " + second["access_token"]},
+                           json=posts)
         assert res.status_code == 201
         print(ress)
         comment = {"text": "totally!"}
@@ -1026,16 +1547,16 @@ class TestDeleteAccount:
                           headers={"Authorization": "Bearer " + deleting["access_token"]},
                           json=comment)
         assert res.status_code == 200
-        #create friends
+        # create friends
         res = client.post("/send_friend_request/{username}".format(username=second["username"]),
                           headers={"Authorization": "Bearer " + deleting["access_token"]})
         res = client.post("/accept_friend_request/{username}".format(username=deleting["username"]),
                           headers={"Authorization": "Bearer " + second["access_token"]})
-        #create lone group
+        # create lone group
         custom_goal_and_group = {
             "goal_name": "all by myself",
             "check_in_period": 90,
-            "questions_answers": [["lone?","lone...."],["none?","none..!"]],
+            "questions_answers": [["lone?", "lone...."], ["none?", "none..!"]],
             "is_group": True,
             "group_name": "table for one",
             "invites": []
@@ -1044,12 +1565,12 @@ class TestDeleteAccount:
                           headers={"Authorization": "Bearer " + deleting["access_token"]},
                           json=custom_goal_and_group)
         assert res.status_code == 200
-        
-        #create group with multiple
+
+        # create group with multiple
         custom_goal_and_group = {
             "goal_name": "us!",
             "check_in_period": 90,
-            "questions_answers": [["lone?","no!"],["none?","wrong..!"]],
+            "questions_answers": [["lone?", "no!"], ["none?", "wrong..!"]],
             "is_group": True,
             "group_name": "our group (together)",
             "invites": ["{username}".format(username=second["username"])]
@@ -1062,27 +1583,25 @@ class TestDeleteAccount:
                           headers={"Authorization": "Bearer " + second["access_token"]})
         assert res.status_code == 200
 
-
-        #delete user
+        # delete user
         res = client.delete("/delete_account/{username}".format(username=deleting["username"]),
-                        headers={"Authorization": "Bearer " + deleting["access_token"]})
-        
-    
-        #assert goals are gone
-        goals = crud.get_user_goals(user_id=deleting["user_id"],db=session,skip=0,limit=100)
+                            headers={"Authorization": "Bearer " + deleting["access_token"]})
+
+        # assert goals are gone
+        goals = crud.get_user_goals(user_id=deleting["user_id"], db=session, skip=0, limit=100)
         assert len(goals) == 0
-        #assert posts and comments are gone
+        # assert posts and comments are gone
         comments = crud.get_comments_by_author(db=session, user_id=deleting["user_id"])
         assert len(comments) == 0
         posts = crud.get_posts_by_author(db=session, post_author=deleting["user_id"])
         assert len(posts) == 0
-        #assert friendships are gone
+        # assert friendships are gone
         second_friends = crud.get_users_friends(db=session, user_id=second["user_id"])
         assert len(second_friends) == 0
-        #assert group is gone
+        # assert group is gone
         groups = crud.get_user_groups(db=session, user_id=deleting["user_id"])
         assert len(groups) == 0
-        #assert group ownership is transfered
+        # assert group ownership is transfered
         second_groups = crud.get_user_groups(db=session, user_id=second["user_id"])
         assert len(second_groups) == 1
         group = second_groups[0]

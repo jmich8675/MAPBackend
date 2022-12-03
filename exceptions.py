@@ -62,10 +62,44 @@ IncorrectPreviousPasswordException = HTTPException(
     detail="Previous password is incorrect"
 )
 
+
 AlreadyInGroup = HTTPException(
     status_code=status.HTTP_400_BAD_REQUEST,
     detail="The user is already in the group!"
 )
+
+NonexistentTemplateException = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND,
+    detail="template does not exist"
+)
+
+InvalidQuestionIDException = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND,
+    detail="template does not exist"
+)
+
+InvalidTemplateException = HTTPException(
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="invalid template"
+)
+
+AlreadyAcceptedGroupInviteException = HTTPException(
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="You have already accepted that group invite"
+)
+
+AlreadyDeniedGroupInviteException = HTTPException(
+    status_code=status.HTTP_400_BAD_REQUEST,
+    detail="You have already denied that group invite"
+)
+
+NonexistentGroupRequestException = HTTPException(
+    status_code=status.HTTP_404_NOT_FOUND,
+    detail="Group invite does not exist"
+)
+
+
+
 
 # class NonExistent(HTTPException):
 #
